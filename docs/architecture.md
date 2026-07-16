@@ -14,13 +14,13 @@ Character Runtime 是整个系统的核心——它接收来自 Agent、硬件�
                         │
                  Agent Event Stream
                         │
-            ┌─── Character Runtime (PC) ───┐
-            │  • Character FSM             │
-            │  • Director (压缩/导演 LLM)   │  ← 可插拔后端
-            │  • Emotion Engine            │
-            │  • Risk Classifier (三层)     │
-            │  • Animation Scheduler       │
-            └──────────────┬───────────────┘
+            ┌─── Character Runtime (PC) ───────┐
+            │  • CharacterBrain (状态+行为)   │
+            │  • Director (文本压缩, 可插拔)   │
+            │  • Emotion Engine (情绪判定)    │
+            │  • Risk Classifier (三层权限)   │
+            │  • Live2D VideoTrack (渲染推流) │
+            └──────────────┬────────────────┘
                            │
                    WebRTC (WiFi6)
         ┌──────────┬────────────┬──────────┐

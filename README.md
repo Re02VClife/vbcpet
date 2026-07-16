@@ -3,8 +3,7 @@
 **vbcpet 不只是一个桌宠，而是一套 AI Agent 的 Character Runtime。**
 ESP32-P4 是它的第一种身体，Live2D 是它的第一张脸。未来可扩展到 VRM、手机、机器人等不同载体。
 
-> **可语音对话、可通过对话驱动电脑编程并实时反馈工作状态。**
-> Agent 事件 → Character Runtime（Director + Emotion + Risk Classifier）→ 动作/表情/声音/身体语言。
+> Agent 事件 → Character Runtime（Director + Emotion + Risk Classifier）→ 动作/表情/声音。
 > 参考 Neuro-sama，语音链路参考小智。完整设计见 [`docs/plan.md`](docs/plan.md) 和 [`docs/architecture.md`](docs/architecture.md)。
 
 ## 核心架构：Character Runtime
@@ -24,22 +23,24 @@ AI Agent (Claude Code / Codex / Cursor …)
         手机 App (可选高保真 Live2D)
 ```
 
-- **Character Event Protocol** — 所有事件（Agent / 硬件 / 用户 / 环境）统一 schema（[ADR-006](docs/decisions.md)）
-- **双 DataChannel** — `ctrl` 可靠（授权/配置）+ `realtime` 不可靠（表情/嘴型/眼睛）（[ADR-007](docs/decisions.md)）
-- **权限三层分级** — Low 自动 / Medium 按键 / High 强制确认（[ADR-008](docs/decisions.md)）
+- **Character Event Protocol** — 所有事件统一 schema，5 事件源 × 16 事件类型（[ADR-006](docs/decisions.md)）
+- **双 DataChannel** — `ctrl` 可靠（授权/配置）+ `realtime` 不可靠（表情/动作）（[ADR-007](docs/decisions.md)）
+- **权限三层分级** — Low 自动 / Medium 按键 / High 强制确认 + RGB 指示（[ADR-008](docs/decisions.md)）
 - **可插拔 Agent** — fake / claude / claude-sdk，统一 `DriverCallbacks` 接口
+- **可插拔 Director** — heuristic（零成本规则）/ openai（兼容 API），文本压缩 + 情绪检测
 
 ## 仓库结构
 
 ```
 vbcpet/
-├─ docs/            # 计划、架构、决策记录(5×ADR)、WebRTC 协议规范
-├─ hardware/        # KiCad 工程文档 + BOM/引脚/电源树/Phase0 验证清单 (M1)
-├─ common/          # PC 侧共享模块: DataChannel 协议(Python) + 帧时间戳标记
-├─ sim/             # ESP32-P4 软件替身 (WebRTC 对端, headless/GUI 双模式)
-├─ firmware/        # ESP-IDF P4 工程 + Wokwi 仿真 + 协议 C 版 + 音频 codec (M2)
-├─ pc-host/         # Agent 驱动 + 导演/压缩 LLM + WebRTC 推流 + 面板 (M3)
-└─ phone/           # 手机 App (M4 待建)
+├─ docs/            # 架构、8×ADR 决策、协议规范、实施计划
+├─ hardware/        # 硬件设计规划 — BOM/引脚/电源树/Phase0 验证清单 (M1)
+├─ common/          # 共享模块 — CharacterEvent 协议 (Python) + 帧时间戳标记
+├─ sim/             # P4 软件替身 — WebRTC 对端, headless/GUI 双模式 + 延迟测量
+├─ firmware/        # ESP32-P4 固件 — ESP-IDF 骨架 + 协议 C 实现 + 音频接口 (M2)
+├─ pc-host/         # PC 主机栈 — Agent 驱动 + Director + Risk + Live2D + WebRTC
+├─ live2d/          # Live2D 渲染 — PixiJS v8 + Cubism 4, Hiyori 模型, 预览脚本
+└─ phone/           # 手机 App (M4, 待建)
 ```
 
 ## 快速开始
@@ -47,71 +48,84 @@ vbcpet/
 ### 1. 装依赖
 
 ```powershell
-cd C:\Users\XU\Desktop\vscode\vbcpet
+cd vbcpet
 python -m venv .venv
 .\.venv\Scripts\pip.exe install -r requirements.txt
+cd live2d && npm install && cd ..
 ```
 
-### 2. 启动仿真回环 (零成本，不依赖硬件)
+### 2. Live2D 预览（不依赖其他组件，先看效果）
 
-**终端 1** — pc-host（默认假代理 + 启发式导演）：
 ```powershell
-.\.venv\Scripts\python.exe pc-host\host.py --port 8080
+python live2d/preview.py
+# → 浏览器打开 http://127.0.0.1:8765/render.html
 ```
 
-**终端 2** — P4 软件替身（说一句话触发代理任务）：
+### 3. 仿真回环（零成本，不依赖硬件）
+
+**终端 1** — pc-host：
 ```powershell
-.\.venv\Scripts\python.exe sim\sim.py --url http://127.0.0.1:8080/whip --headless --duration 16 --say "帮我跑测试"
+.\.venv\Scripts\python.exe pc-host\host.py --port 8080 --driver fake
 ```
 
-### 3. 真实 Claude Code（需 ccswitch / Claude CLI 可用，工具授权用 4 按键）
+**终端 2** — P4 软件替身：
+```powershell
+.\.venv\Scripts\python.exe sim\sim.py --url http://127.0.0.1:8080/whip --headless --say "帮我跑测试"
+```
+
+### 4. Live2D WebRTC 推流（需 Playwright）
 
 ```powershell
-# 终端 1 —— SDK 驱动 + 真实逐工具授权
+.\.venv\Scripts\python.exe pc-host\host.py --port 8080 --driver fake --live2d live2d/render.html
+```
+
+### 5. 真实 Claude Code
+
+```powershell
+# SDK 驱动 + 真实逐工具按键授权
 .\.venv\Scripts\python.exe pc-host\host.py --port 8080 --driver claude-sdk -v
-
-# 终端 2 —— 说一句需要工具的话，自动按 yes 或 no
-.\.venv\Scripts\python.exe sim\sim.py --url http://127.0.0.1:8080/whip --headless --duration 50 --auto-key yes --say "帮我新建文件 hello.txt 内容 hi"
+# 另开终端
+.\.venv\Scripts\python.exe sim\sim.py --url http://127.0.0.1:8080/whip --headless --auto-key yes --say "新建文件 hello.txt"
 ```
 
-`--director` 选 `heuristic`（默认，零成本规则压缩）或 `openai`（需设环境变量 `VBCPET_OPENAI_BASE` / `VBCPET_OPENAI_KEY` / `VBCPET_OPENAI_MODEL`）。
+`--director` 选 `heuristic`（默认，零成本规则压缩）或 `openai`（需设 `VBCPET_OPENAI_BASE/KEY/MODEL` 环境变量）。
 
 ## 已验证功能
 
-| 功能 | 验证方式 | 状态 |
-|---|---|---|
-| WebRTC 连接 + DataChannel 双向 | `sim --headless` ↔ `pc-host` 回环 | ✅ 30FPS 视频轨，中位延迟 ~50ms |
-| 假代理全回路（说→想→授权→按键→完成） | `--driver fake` + `--say` | ✅ 零成本验证 |
-| 真实 Claude CLI 文本 + token 面板 | `--driver claude` | ✅ 真实用量 19.7k tokens |
-| **SDK `can_use_tool` 按键授权** | `--driver claude-sdk` + `--auto-key yes/no` | ✅ deny 拦截、allow 放行均实测 |
-| **导演/压缩 LLM** | `--director heuristic` | ✅ 压缩率可见 + 情绪检测 |
-| 固件协议 C 版 | `firmware/main/protocol.{h,c}` (470行) | ✅ API 对齐 Python 版 |
-| 音频 codec (小智方案) | `firmware/main/audio_codec.{h,c}` | ✅ ES7210/ES8311 初始化 |
-| 硬件选型文档 | BOM / 引脚 / 电源树 / PCB 约束 | ✅ |
+| 功能 | 状态 |
+|------|------|
+| WebRTC 连接 + 双 DataChannel 双向 | ✅ ~30FPS 视频轨，中位延迟 ~50ms |
+| CharacterEvent 协议 (Python + C 双实现) | ✅ v1 event + v0 flat 向下兼容 |
+| 假代理全回路（说→想→授权→按键→完成） | ✅ |
+| 真实 Claude CLI 文本 + token 面板 | ✅ 真实用量 19.7k tokens |
+| **SDK `can_use_tool` 按键授权** | ✅ deny/allow 均实测通过 |
+| Risk Classifier V1（三层关键词） | ✅ |
+| Director（文本压缩 + 情绪检测） | ✅ heuristic + openai 双后端 |
+| **Live2D Hiyori 模型渲染** | ✅ 480×800 竖屏, resolution 2x AA |
+| **Live2D WebRTC 推流** | ✅ Playwright 无头截图 → H.264 视频轨 |
+| 固件协议 C 实现 | ✅ API 对齐 Python 版，cJSON 编码/解析 |
+| GUI 仿真 (Tkinter) | ✅ 视频显示 + 4 按键 + 在位模拟 |
 
 ## 驱动选型
 
 | `--driver` | 说明 | 成本 | 按键授权 |
 |---|---|---|---|
 | `fake` (默认) | 脚本假代理，完整事件流 | 零 | ✅ 逻辑通过 |
-| `claude` | 真实 CLI 子进程 (stream-json) | API 费 | ⚠️ 文本/面板通，授权待 SDK |
-| `claude-sdk` | SDK + `can_use_tool` 回调 | API 费 | ✅ deny/allow 实测通过 |
-| `demo` | 早期纯演示循环 | 零 | - |
+| `claude` | 真实 CLI 子进程 (stream-json) | API 费 | ⚠️ control_request 协议 |
+| `claude-sdk` | SDK + `can_use_tool` 回调 | API 费 | ✅ deny/allow + yes_always |
 
 ## 里程碑
 
 | # | 内容 | 状态 |
 |---|---|---|
-| **M1** | 硬件 / PCB | 文档就绪，待买 P4 devkit 做 Phase 0 |
-| **M2** | 固件 (ESP-IDF + Wokwi) | 代码骨架就绪，待 IDF 编译 |
-| **M2.5** | **Character Runtime MVP** — Event Protocol + 双 DataChannel + Risk Classifier + Chaos Testing | 设计就绪 (ADR-006/007/008)，待实现 |
-| **M3** | Touch / ToF / RGB / 双麦 + ASR/TTS | 部分代码就绪，待接 |
-| **M3.5** | 头部舵机 + DOF 身体动作 | 待硬件 |
+| **M1** | 硬件 / PCB | P4 开发板已到，Phase 0 待启动 |
+| **M2** | 固件 (ESP-IDF) | 协议 C 实现 + 音频接口就绪，WebRTC/DSI 待接 |
+| **M2.5** | **Character Runtime MVP** | ✅ Event Protocol / 双通道 / Risk / SDK 授权 — 全部完成 |
+| **M3** | Live2D + 导演 + 推流 | ✅ 渲染已验证，待 Playwright 安装做推流闭环 |
+| **M3.5** | Touch / ToF / RGB / 舵机 | 待硬件 |
 | **M4** | Camera + Phone App + Dock | 待建 |
 
 ## Future Vision
-
-Character Runtime 不依赖任何具体 Agent 或具体硬件。同一套 Character Event 和 Character State 可以驱动：
 
 | Agent | 载体 |
 |---|---|
@@ -125,3 +139,4 @@ Character Runtime 不依赖任何具体 Agent 或具体硬件。同一套 Charac
 - [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) — 语音/音频链路基座
 - [esp-webrtc-solution](https://github.com/espressif/esp-webrtc-solution) — WebRTC 传输
 - [claude-agent-sdk](https://pypi.org/project/claude-agent-sdk/) — Python Agent SDK (`can_use_tool` 权限回调)
+- [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display) — PixiJS Live2D 插件

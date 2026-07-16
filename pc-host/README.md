@@ -1,55 +1,108 @@
-# pc-host (M3) — PC 主机栈
+# pc-host — PC 主机栈
 
-> 里程碑 M3，M1/M2 之后展开（部分模块 Phase 0 即可先起最小版）。运行在用户电脑，承担重计算。
+PC 侧重计算引擎。WebRTC 信令 + Agent 驱动 + Director + Risk Classifier + Live2D 推流。
 
-## Phase 0 现状（已实现，可运行）
-[`host.py`](host.py) 是最小骨架，与 [`../sim/`](../sim/) 做真实 WebRTC 回环，验证**传输 + 协议 + 代理驱动**：
-- 本地 WHIP/HTTP 信令；向 sim 推占位视频轨（动画 + 帧时间戳标记）+ 占位音频轨。
-- DataChannel `ctrl`：把「代理驱动」的事件转成 `work_status`/`say`/`avatar`/`panel`/`prompt_confirm` 下行；
-  收 `user_text`（ASR 结果）转给代理；收 `button` 按 [`../docs/protocol.md`](../docs/protocol.md) §3 映射为授权结果。
+## 模块总览
 
-### Agent 驱动（`--driver`）
-被控制的 AI 代理经统一接口 [`agent_driver.py`](agent_driver.py) 抽象，三种实现：
+| 文件 | 职责 | 状态 |
+|------|------|------|
+| `host.py` | 主入口：WHIP 信令、WebRTC、双 DataChannel 路由、驱动/导演/Live2D 编排 | ✅ |
+| `agent_driver.py` | 抽象基类：`AgentDriver` + `DriverCallbacks` + `PermissionRequest` + `Usage` | ✅ |
+| `fake_driver.py` | 脚本化假代理，完整事件流（think→edit→blocked→run→done），零成本测试 | ✅ |
+| `claude_driver.py` | Claude CLI 子进程驱动（stream-json 双向），真实 token/文本 | ✅ |
+| `claude_sdk_driver.py` | Claude Agent SDK 驱动（`can_use_tool` → 4 按键授权），**推荐** | ✅ |
+| `director.py` | Director：文本压缩 + 情绪/动作标签，可插拔后端 | ✅ |
+| `director_backends.py` | `HeuristicBackend`（零成本规则）+ `OpenAIBackend`（兼容 API） | ✅ |
+| `risk.py` | Risk Classifier V1：三层关键词匹配（Low/Medium/High） | ✅ |
+| `live2d_track.py` | Playwright 无头 Chromium → Live2D 截图 → H.264 VideoTrack | ✅ |
 
-| `--driver` | 实现 | 说明 |
-|---|---|---|
-| `fake` (默认) | [`fake_driver.py`](fake_driver.py) | 脚本化假代理，**无成本、不执行真实工具**，完整走「指令→状态→授权→按键→完成」闭环。开发/CI 首选。 |
-| `claude` | [`claude_driver.py`](claude_driver.py) | 长驻真实 `claude` 子进程（headless 双向 stream-json）。**已验证**：`user_text`→真实回复(`say`)→真实 token/成本面板。 |
-| `demo` | host.py 内脚本 | 早期纯演示循环（无代理）。 |
+## 运行
 
-运行：
+### 依赖
+
 ```bash
-python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # 仓库根
-.venv/Scripts/python pc-host/host.py --port 8080 --driver fake          # 假代理(推荐先跑)
-.venv/Scripts/python pc-host/host.py --port 8080 --driver claude        # 真实 Claude Code
+pip install -r requirements.txt        # aiortc, aiohttp, numpy, Pillow
+pip install playwright                 # 仅 --live2d 模式
+pip install claude-agent-sdk           # 仅 --driver claude-sdk
 ```
-另开终端用 sim 说一句话触发：`python sim/sim.py --url http://127.0.0.1:8080/whip --headless --say "帮我跑一下测试"`。
 
-### 工具授权（yes/no/yes_always）—— 重要结论
-按 [claude-code-guide 调研]：真实**交互式逐工具授权**依赖 `control_request`/`control_response` 协议。
-- 该协议在 **CLI v2.1.185 无 `--permission-prompt-tool` 标志**（已核实 `--help`），**原始 CLI 无法可靠触发**逐工具授权。
-- 官方推荐路径是 **Python Agent SDK**（`claude-agent-sdk`，可装 v0.2.118）的 `can_use_tool` 回调——直接映射到 4 按键：
-  `yes`→`PermissionResultAllow()`，`yes_always`→`Allow(updated_permissions=[addRules])`，`no`→`PermissionResultDeny(message)`。
-- 现状：`claude_driver.py` 已按协议实现 control_response（含 `updatedInput` 镜像），一旦该协议可用即生效；
-  **完整授权回路当前由 `fake` 驱动确定性验证通过**。真实授权回路 = 下一步接 SDK（`claude_sdk_driver.py`，待建）。
+### 启动方式
 
-## 模块（M3 目标）
-1. **Claude Code 驱动器**：headless 长驻进程
-   `claude -p --output-format stream-json --input-format stream-json --verbose --permission-prompt-tool stdio`
-   解析事件流（assistant/tool_use/result/control_request），维护会话。
-2. **导演 / 压缩 LLM（可插拔后端）**：把大段 Claude 输出压成
-   `{ speech, action, expression, emotion, work_status }` 结构化 JSON。
-   后端适配层：Claude / OpenAI / OpenAI-兼容本地或第三方，配置切换（见 [`../docs/decisions.md`](../docs/decisions.md) ADR-003）。
-3. **语音**：本地 **ASR**（Whisper）+ 本地 **TTS** + **声纹识别**（说话人判定）。
-4. **Live2D 渲染 + 推流**：真实 Live2D 引擎渲染（口型由 TTS 驱动）→ H.264 编码 → WebRTC 视频轨。
-5. **WebRTC 端**：视频轨发送 + 音频轨双向 + DataChannel `ctrl`（信令用本地 WHIP/HTTP）。
-6. **面板 UI**：token 用量、成本、状态、会话信息。
-7. **按键映射**：DataChannel `button` → Claude Code `control_response`（yes/no/yes_always，见 [`../docs/protocol.md`](../docs/protocol.md) §3）。
+```bash
+# 假代理（默认，零成本测试）
+python pc-host/host.py --port 8080
 
-## 技术栈（待定）
-- 语言：Python 或 Node.js（WebRTC 库：aiortc / node-webrtc / gstreamer）。
-- Live2D：Cubism SDK（native）或 pixi-live2d（headless 浏览器）——注意**商用授权**。
+# 真实 Claude SDK + 按键授权
+python pc-host/host.py --port 8080 --driver claude-sdk -v
 
-## 参考
-- Claude Code headless：`--output-format stream-json`、`--permission-prompt-tool stdio`、`control_request/response`。
-- 协议细节见 [`../docs/protocol.md`](../docs/protocol.md)。
+# 真实 Claude CLI
+python pc-host/host.py --port 8080 --driver claude -v
+
+# Live2D 推流模式（需 Playwright + npm install）
+python pc-host/host.py --port 8080 --live2d live2d/render.html
+
+# OpenAI Director（需环境变量）
+$env:VBCPET_OPENAI_BASE="https://api.deepseek.com/v1"
+$env:VBCPET_OPENAI_KEY="sk-..."
+python pc-host/host.py --port 8080 --director openai
+```
+
+### 配合 sim 测试
+
+```bash
+# 终端 1
+python pc-host/host.py --port 8080 --driver fake
+
+# 终端 2
+python sim/sim.py --url http://127.0.0.1:8080/whip --headless --say "帮我跑测试"
+```
+
+## Agent 驱动（`--driver`）
+
+| `--driver` | 实现 | 授权方式 | 成本 |
+|---|---|---|---|
+| `fake` (默认) | 脚本化假代理 | 假授权回路（Future 解析） | 零 |
+| `claude` | CLI 子进程 stream-json | `control_request`/`control_response` | API 费 |
+| `claude-sdk` | Python Agent SDK `can_use_tool` | **4 按键直连** → `Allow`/`Deny`/`addRules` | API 费 |
+| `demo` | host.py 内置演示循环 | - | 零 |
+
+所有驱动通过 `agent_driver.AgentDriver` 抽象基类统一接口。
+
+## Director（`--director`）
+
+| `--director` | 说明 | 成本 |
+|---|---|---|
+| `heuristic` (默认) | 正则清洗 + 首句提取 + 关键词情绪检测 | 零 |
+| `openai` | 调用 `/v1/chat/completions`，LLM 压缩 + 情绪标签 | API 费 |
+
+`openai` 后端配置通过环境变量：
+- `VBCPET_OPENAI_BASE` — API 地址（如 `https://api.deepseek.com/v1`）
+- `VBCPET_OPENAI_KEY` — API Key
+- `VBCPET_OPENAI_MODEL` — 模型名（默认 `deepseek-chat`）
+
+## Risk Classifier（三层权限）
+
+`risk.classify(tool_name, tool_input) → (RiskLevel, reason)`
+
+| 等级 | 触发条件 | 行为 |
+|------|---------|------|
+| **Low** | Read/Grep/Glob/WebSearch + 安全 Bash | SDK 自动 `Allow` |
+| **Medium** | Write/Edit/一般 Bash | DataChannel `prompt_confirm` → 等按键 |
+| **High** | rm -rf/sudo/curl\|sh/git push -f/关键路径 | DataChannel + RGB 红 |
+
+## Live2D 推流
+
+`live2d_track.Live2DVideoTrack`:
+1. 起本地 HTTP 服务器（绕过 CORS）
+2. Playwright 无头 Chromium 加载 `render.html`
+3. 等待 `window._ready`
+4. 每帧截图 → PIL → numpy → PyAV → VideoFrame
+5. `apply_avatar(action, emotion, intensity)` 驱动动作/表情
+
+`ACTION_TO_MOTION` / `EMOTION_TO_EXPRESSION` 映射 Director 输出到 Live2D 标准名称。
+
+## 协议
+
+- **Downlink**: `speech` / `emotion`(→realtime) / `status` / `panel` / `permission`
+- **Uplink**: `user_text`(→Agent) / `button`(→授权) / `hello` / `heartbeat`
+- 详见 [`../docs/protocol.md`](../docs/protocol.md) 和 [`../common/protocol.py`](../common/protocol.py)
