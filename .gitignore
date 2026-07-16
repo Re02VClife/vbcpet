@@ -1,0 +1,53 @@
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ──
+.vscode/
+.idea/
+*.swp
+
+# ── ESP-IDF / firmware ──
+firmware/**/build/
+firmware/**/sdkconfig
+firmware/**/sdkconfig.old
+firmware/**/managed_components/
+*.bin
+*.elf
+*.map
+
+# ── KiCad (hardware) ──
+hardware/**/*-backups/
+hardware/**/*.kicad_prl
+hardware/**/*.kicad_sch-bak
+hardware/**/*.bak
+hardware/**/fp-info-cache
+hardware/**/_autosave-*
+
+# ── PC host (Python/Node) ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+dist/
+build/
+.env
+.env.*
+
+# ── phone ──
+phone/**/build/
+phone/**/.gradle/
+phone/**/Pods/
+
+# ── Live2D external repos ──
+live2d/CubismWebSamples/
+
+# ── Claude session files ──
+.claude/
+
+# ── logs / scratch ──
+*.log
+/tmp/
+scratch/

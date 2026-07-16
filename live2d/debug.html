@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Debug</title>
+<style>body{margin:20px;background:#111;color:#0f0;font:14px monospace}canvas{border:2px solid red}</style>
+</head>
+<body>
+<pre id="log"></pre>
+<script>const L=(m)=>{log.textContent+=m+'\n';console.log(m);};</script>
+
+<script src="live2dcubismcore.min.js"></script>
+<script>L('1. Core: '+typeof Live2DCubismCore)</script>
+
+<script type="importmap">
+{"imports":{"pixi.js":"./node_modules/pixi.js/dist/pixi.mjs","@jannchie/pixi-live2d-display":"./node_modules/@jannchie/pixi-live2d-display/dist/cubism4.es.js"}}
+</script>
+<script>window.process={env:{}};</script>
+
+<script type="module">
+let app, model;
+
+// Step 1: import
+let PIXI, Live2DModel;
+try {
+  PIXI = await import('pixi.js');
+  window.PIXI = PIXI;
+  L('1. PIXI OK');
+} catch(e) { L('1. PIXI FAIL: '+e.message); }
+
+try {
+  const m = await import('@jannchie/pixi-live2d-display');
+  Live2DModel = m.Live2DModel;
+  L('2. Live2DModel OK');
+} catch(e) { L('2. Live2DModel FAIL: '+e.message+'\n'+e.stack); }
+
+if (!PIXI || !Live2DModel) { L('ABORT: imports failed'); throw new Error('imports'); }
+
+// Step 2: create canvas
+try {
+  app = new PIXI.Application();
+  await app.init({width:800,height:600,background:0x00aa88});
+  document.body.appendChild(app.canvas);
+  L('3. Green canvas created');
+} catch(e) { L('3. Canvas FAIL: '+e.message); }
+
+// Step 3: load model
+try {
+  L('4. Loading Hiyori...');
+  model = await Live2DModel.from('./Hiyori/Hiyori.model3.json',{autoInteract:false});
+  model.scale.set(0.18);
+  model.x=400; model.y=330;
+  app.stage.addChild(model);
+  L('5. SUCCESS! Hiyori rendered');
+} catch(e) {
+  L('4/5. Model FAIL: '+e.message+(e.cause?' cause:'+e.cause:''));
+  // fallback: show text
+  if (PIXI) {
+    const t = new PIXI.Text({text:'FAIL: '+e.message,style:{fontSize:20,fill:'#f44'}});
+    t.anchor.set(0.5); t.x=400; t.y=300;
+    app.stage.addChild(t);
+  }
+}
+</script>
+</body>
+</html>

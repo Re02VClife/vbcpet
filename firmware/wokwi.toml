@@ -1,0 +1,6 @@
+# vbcpet firmware — Wokwi ESP32-P4 Beta project
+# 运行: wokwi-server 或通过 VSCode Wokwi 扩展
+# 目标: board-esp32-p4-preview (ESP32-P4-Preview-DevKitC-1)
+# ESP-IDF target: esp32p4
+[firmware]
+binary = "build/vbcpet.elf"

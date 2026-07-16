@@ -1,0 +1,10 @@
+# vbcpet Phase 0 仿真件 + pc-host 依赖
+# 用法: python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
+aiortc>=1.15.0      # WebRTC (视频轨/音频轨/DataChannel)
+aiohttp>=3.9        # 本地 WHIP/HTTP 信令
+numpy>=1.26         # 占位视频帧生成/解析
+Pillow>=10.0        # sim GUI 显示解码帧 + Live2D 截图解码
+playwright>=1.48    # Live2D 无头浏览器渲染 (仅 --live2d 模式需要)
+
+# 仅 pc-host --driver claude-sdk 需要（真实逐工具授权回路）：
+claude-agent-sdk>=0.2   # 官方 Python Agent SDK，can_use_tool 权限回调
