@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Test Pattern</title>
+<style>body{margin:0;overflow:hidden}</style>
+</head>
+<body>
+<canvas id="c" width="320" height="240"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// 5 条彩色竖条 + 帧计数器
+let n = 0;
+function draw() {
+    const colors = ['#FF0000','#00FF00','#0000FF','#FFFF00','#FF00FF'];
+    const w = 320/5;
+    for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = colors[i];
+        ctx.fillRect(i*w, 0, w, 180);
+    }
+    // 底部白色文字 + 帧号
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 180, 320, 60);
+    ctx.fillStyle = '#FFF';
+    ctx.font = '18px monospace';
+    ctx.fillText('vbcpet P4 OK', 70, 210);
+    ctx.fillText('#' + n, 140, 235);
+
+    n++;
+    requestAnimationFrame(draw);
+}
+
+window._ready = true;
+window.playMotion = function(m) { console.log('motion:', m); return true; };
+window.setExpression = function(e, v) { console.log('expr:', e, v); return true; };
+window.getStatus = function() { return {ready: true, motions: [], expressions: []}; };
+
+draw();
+</script>
+</body>
+</html>

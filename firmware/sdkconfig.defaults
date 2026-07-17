@@ -1,16 +1,19 @@
-# vbcpet firmware — ESP32-P4 Wokwi Beta default config
-# 在 ESP-IDF v5.4+ 下使用: idf.py set-target esp32p4
+# vbcpet firmware — ESP32-P4 WT9932P4-TINY Phase 0 bring-up
+# 编译: idf.py set-target esp32p4 && idf.py build
 CONFIG_IDF_TARGET="esp32p4"
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+# 烧录波特率 (USB-Serial/JTAG 可跑 2M)
+CONFIG_ESPTOOLPY_BAUD=2000000
 
-# 串口 (Wokwi 默认)
+# 串口: console 走 UART0 (GPIO37/38), USB Serial JTAG 专用于数据传输
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_UART_NUM=0
 
-# WiFi 占位 (P4 无原生 WiFi, 后续经 C6 esp-hosted; Wokwi 中 WiFi 初始化无害但无实际连接)
-CONFIG_VBCPET_WIFI_SSID="wokwi"
-CONFIG_VBCPET_WIFI_PASSWORD="wokwi123"
+# 芯片修订 v1 (匹配物理芯片 v1.3)
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_FULL=1
+CONFIG_ESP_REV_MIN_FULL=1
 
 # FreeRTOS
 CONFIG_FREERTOS_HZ=1000
@@ -18,7 +21,6 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 
 # 分区表
 CONFIG_PARTITION_TABLE_SINGLE_APP=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
 # 日志
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
