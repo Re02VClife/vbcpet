@@ -85,11 +85,10 @@ static int display_init(void)
     ESP_ERROR_CHECK(esp_lcd_panel_reset(g_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(g_panel));
 
-    // 方向 (关屏写)
+    // 方向: 横屏 (使用驱动 API 替代手动 MADCTL)
     esp_lcd_panel_disp_on_off(g_panel, false);
-    vTaskDelay(pdMS_TO_TICKS(10));
-    esp_lcd_panel_io_tx_param(g_io, 0x36, (uint8_t[]){0x60}, 1);  // MX=MV=1
-    vTaskDelay(pdMS_TO_TICKS(10));
+    esp_lcd_panel_swap_xy(g_panel, true);      // MV=1
+    esp_lcd_panel_mirror(g_panel, true, false); // MX=1, MY=0
     esp_lcd_panel_disp_on_off(g_panel, true);
 
     ESP_LOGI(TAG, "ST7789V 就绪");
