@@ -40,10 +40,9 @@ try {
     model = await Live2DModel.from('./Hiyori/Hiyori.model3.json',{autoHitTest:false, autoFocus:false});
     window._model = model;
 
-    model.scale.set(0.28);
-    model.rotation = -Math.PI/2;
-	model.x = W/2;
-    model.y = H * 0.55;
+    model.scale.set(0.16);
+    model.x = W/2;
+    model.y = H * 0.55 + 40;
     if (model.anchor) model.anchor.set(0.5, 0.5);
 
     app.stage.addChild(model);

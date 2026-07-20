@@ -85,11 +85,10 @@ static int display_init(void)
     ESP_ERROR_CHECK(esp_lcd_panel_reset(g_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(g_panel));
 
-    // 方向 (关屏写) — 使用 ESP-IDF API 确保驱动状态同步
+    // 方向 (关屏写)
     esp_lcd_panel_disp_on_off(g_panel, false);
     vTaskDelay(pdMS_TO_TICKS(10));
     esp_lcd_panel_io_tx_param(g_io, 0x36, (uint8_t[]){0x60}, 1);  // MX=MV=1
-    
     vTaskDelay(pdMS_TO_TICKS(10));
     esp_lcd_panel_disp_on_off(g_panel, true);
 
@@ -154,14 +153,7 @@ static void decode_and_display(const uint8_t *jpeg_data, uint32_t jpeg_size)
         return;
     }
 
-    // 4) 字节交换: PPA输出小端序 → ST7789V需大端序
-    uint16_t *pixels = (uint16_t*)outbuf;
-    uint32_t pixel_count = w * h;
-    for (uint32_t i = 0; i < pixel_count; i++) {
-        pixels[i] = (pixels[i] << 8) | (pixels[i] >> 8);
-    }
-
-    // 5) 推屏 (居中显示)
+    // 4) 推屏 (居中显示)
     int x_off = (LCD_WIDTH  - (int)w) / 2;
     int y_off = (LCD_HEIGHT - (int)h) / 2;
     if (x_off < 0) x_off = 0;
@@ -171,12 +163,12 @@ static void decode_and_display(const uint8_t *jpeg_data, uint32_t jpeg_size)
     static bool first_frame = true;
     if (first_frame) {
         uint16_t *black = calloc(1, LCD_WIDTH * LCD_HEIGHT * 2);
-        esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_WIDTH-1, LCD_HEIGHT-1, black);
+        esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_WIDTH, LCD_HEIGHT, black);
         free(black);
         first_frame = false;
     }
 
-    esp_lcd_panel_draw_bitmap(g_panel, x_off, y_off, x_off+w-1, y_off+h-1, outbuf);
+    esp_lcd_panel_draw_bitmap(g_panel, x_off, y_off, w, h, outbuf);
 
     // 调试: 输出首像素值到 USB Serial JTAG
     static int debug_count = 0;
@@ -313,7 +305,7 @@ int serial_display_start(void)
                         wait_buf[y * LCD_WIDTH + x] = 0x7E0;  // 绿色边框
                 }
             }
-            esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_WIDTH-1, LCD_HEIGHT-1, wait_buf);
+            esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_WIDTH, LCD_HEIGHT, wait_buf);
             free(wait_buf);
         }
     }
