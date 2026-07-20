@@ -88,7 +88,8 @@ static int display_init(void)
     // 方向 (关屏写) — 使用 ESP-IDF API 确保驱动状态同步
     esp_lcd_panel_disp_on_off(g_panel, false);
     vTaskDelay(pdMS_TO_TICKS(10));
-    esp_lcd_panel_io_tx_param(g_io, 0x36, (uint8_t[]){0x60}, 1);  // MX=MV=1 横屏方向
+    esp_lcd_panel_io_tx_param(g_io, 0x36, (uint8_t[]){0x60}, 1);  // MX=MV=1
+    
     vTaskDelay(pdMS_TO_TICKS(10));
     esp_lcd_panel_disp_on_off(g_panel, true);
 
