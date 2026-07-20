@@ -1,6 +1,6 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-07-17 | 当前阶段: Phase 0 Bring-up
+> 更新: 2026-07-20 | 当前阶段: Phase 0 Bring-up — ✅ JPEG 解码 + Live2D 显示已打通
 
 ---
 
@@ -32,14 +32,15 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 | **NVS** | Flash 存储初始化正常 |
 | **协议栈** | DataChannel 协议 **24/24 测试通过** — 构建(hello/heartbeat/button/dock/user_text)、解析(panel/say/type/work_status/prompt_confirm)、v1 CharacterEvent 编解码、v0/v1 兼容层 |
 | **SPI 显示** | ST7789V 320×240 点亮，SPI Mode 0 / 10MHz，方向正确 (MADCTL=0x60) |
-| **USB 串口推流** | PC → P4 JPEG 帧传输链路通，稳定 3.6fps / 12.7KB/s |
+| **USB 串口推流** | PC → P4 JPEG 帧传输链路通，稳定 3.5fps / 6.3KB/s (Live2D) |
 | **PC Live2D 渲染** | PixiJS + Cubism 4 + Playwright 无头截图可用 (Hiyori 模型就位) |
+| **JPEG 硬解 + 显示** | ✅ PPA 硬件解码 + ST7789V 显示端到端打通 — 预分配缓冲方案有效 |
+| **Live2D → 屏幕** | ✅ Hiyori 角色成功显示在 ST7789V — PC 渲染→JPEG→串口→P4 解码→显示全链路通 |
 
 ### 🔧 调试中
 
 | 模块 | 状态 | 阻塞点 |
 |------|------|--------|
-| **JPEG 硬解 + 显示** | 数据链路通 | 缓冲区对齐要求 → `jpeg_alloc_decoder_mem` 分配失败/预分配修复中 |
 | **ST7789V 颜色** | 能显示但偏色 | 绿→红、红→黄、蓝→紫，所有软件配置无效，疑似面板硬件固有色映射 |
 
 ### ❌ 未开始
@@ -92,6 +93,20 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 
 **解决**: 画布改为 320×240 匹配显示屏，模型缩放和位置相应调整
 
+### 6. ESP32-P4 bootloader flash 偏移量 (2026-07-20 发现 🔑)
+
+**现象**: 重新烧录后 P4 无限循环 `invalid header: 0x5073bcb7` + WDT 重启，esptool 读回 flash 数据正确但 ROM bootloader 找不到有效固件
+
+**根因**: **ESP32-P4 与其他 ESP32 不同 — ROM bootloader 在 flash 偏移 `0x2000` 处查找第二级 bootloader**，而非标准 ESP32 的 `0x0`。手动 esptool 命令用错偏移量（`0x0`），而 `idf.py flash` 自动读取 `flasher_args.json` 使用正确偏移。
+
+**证据**: `firmware/build/flasher_args.json` 明确记录 `"0x2000": "bootloader/bootloader.bin"`
+
+**正确烧录命令**:
+```bash
+esptool write_flash 0x2000 bootloader/bootloader.bin 0x8000 partition_table/partition-table.bin 0x10000 vbcpet.bin
+# 或直接用: idf.py flash  (自动使用正确偏移量)
+```
+
 ---
 
 ## 四、技术摘要
@@ -100,8 +115,10 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 
 ```
 ESP32-P4 rev1.3 | SPI: Mode 0, 10MHz | Display: 320×240 RGB565
-Console: UART0 (GPIO 37/38) | Data: USB Serial JTAG (COM16, 2M baud)
-Protocol: FRAME:<hex_size>\n + JPEG | JPEG: quality 55, ~3.7KB/frame
+Console: UART0 | Data: USB Serial JTAG (COM16, 2M baud)
+Flash: bootloader@0x2000 (⚠️ ESP32-P4 专有!) | partition@0x8000 | app@0x10000
+Protocol: FRAME:<hex_size>\n + JPEG | JPEG: quality 60
+Live2D: ~1.8KB/frame, 6.3KB/s | Test Pattern: ~3.8KB/frame, 13KB/s
 ```
 
 ### 内存使用

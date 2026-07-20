@@ -29,10 +29,10 @@ const Live2DModel = L4DM.Live2DModel;
 
 console.log('1. imports OK');
 
-const W=320, H=240;
+const W=240, H=320;
 app = new PIXI.Application();
 await app.init({width:W, height:H, background:0x335577,
-    resolution:2, autoDensity:true, antialias:true});
+    resolution:1, antialias:true, preserveDrawingBuffer: true});
 document.body.appendChild(app.canvas);
 console.log('2. canvas', app.canvas.width, 'x', app.canvas.height, 'screen', app.screen.width, 'x', app.screen.height);
 
@@ -40,8 +40,9 @@ try {
     model = await Live2DModel.from('./Hiyori/Hiyori.model3.json',{autoHitTest:false, autoFocus:false});
     window._model = model;
 
-    model.scale.set(0.20);
-    model.x = W/2;
+    model.scale.set(0.16);
+    model.rotation = -Math.PI/2;
+	model.x = W/2;
     model.y = H * 0.55;
     if (model.anchor) model.anchor.set(0.5, 0.5);
 

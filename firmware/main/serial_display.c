@@ -34,8 +34,8 @@ static const char *TAG = "serial_disp";
 #define PIN_MOSI   GPIO_NUM_19
 #define PIN_SCLK   GPIO_NUM_20
 
-#define LCD_WIDTH   320
-#define LCD_HEIGHT  240
+#define LCD_WIDTH   240
+#define LCD_HEIGHT  320
 
 // ── 帧协议 ──
 #define FRAME_PREFIX    "FRAME:"
@@ -88,7 +88,7 @@ static int display_init(void)
     // 方向 (关屏写)
     esp_lcd_panel_disp_on_off(g_panel, false);
     vTaskDelay(pdMS_TO_TICKS(10));
-    esp_lcd_panel_io_tx_param(g_io, 0x36, (uint8_t[]){0x60}, 1);  // MX=MV=1
+    esp_lcd_panel_io_tx_param(g_io, 0x36, (uint8_t[]){0x20}, 1);  // MV=1 portrait (240x320→320x240 phys)
     vTaskDelay(pdMS_TO_TICKS(10));
     esp_lcd_panel_disp_on_off(g_panel, true);
 

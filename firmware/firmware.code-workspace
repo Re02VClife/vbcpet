@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {
+      "name": "vbcpet-firmware",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "idf.currentSetup": "D:/Espressif/frameworks/esp-idf-v5.5.3/",
+    "idf.openOcdConfigs": [
+      "board/esp32p4-builtin.cfg"
+    ],
+    "idf.portWin": "COM16",
+    "idf.customExtraPaths": "D:\\Espressif\\tools\\ninja\\1.12.1;D:\\Espressif\\tools\\cmake\\3.30.2\\bin;D:\\Espressif\\tools\\riscv32-esp-elf\\esp-14.2.0_20251107\\riscv32-esp-elf\\bin;D:\\Espressif\\tools\\xtensa-esp-elf\\esp-14.2.0_20251107\\xtensa-esp-elf\\bin;D:\\Espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20251215\\openocd-esp32\\bin;D:\\Espressif\\tools\\idf-git\\2.44.0\\cmd;D:\\Espressif\\python_env\\idf5.5_py3.11_env\\Scripts",
+    "clangd.path": "D:\\Espressif\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
+    "clangd.arguments": [
+      "--background-index",
+      "--query-driver=**",
+      "--compile-commands-dir=${workspaceFolder}/build"
+    ]
+  }
+}
