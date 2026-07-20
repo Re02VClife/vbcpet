@@ -29,7 +29,7 @@ const Live2DModel = L4DM.Live2DModel;
 
 console.log('1. imports OK');
 
-const W=240, H=320;
+const W=320, H=240;
 app = new PIXI.Application();
 await app.init({width:W, height:H, background:0x335577,
     resolution:1, antialias:true, preserveDrawingBuffer: true});
@@ -40,7 +40,7 @@ try {
     model = await Live2DModel.from('./Hiyori/Hiyori.model3.json',{autoHitTest:false, autoFocus:false});
     window._model = model;
 
-    model.scale.set(0.16);
+    model.scale.set(0.28);
     model.rotation = -Math.PI/2;
 	model.x = W/2;
     model.y = H * 0.55;
