@@ -174,7 +174,7 @@ int display_test_start(void)
         .cs_gpio_num       = PIN_CS,
         .dc_gpio_num       = PIN_DC,
         .spi_mode          = 0,               // Mode 0 (Mode 3 命令不生效)
-        .pclk_hz           = 10 * 1000 * 1000, // 10MHz (先稳再调快)
+        .pclk_hz           = 40 * 1000 * 1000, // 10MHz (先稳再调快)
         .trans_queue_depth = 10,
         .lcd_cmd_bits      = 8,
         .lcd_param_bits    = 8,
@@ -198,7 +198,7 @@ int display_test_start(void)
     // 5. 显示方向 (关屏写确保生效)
     esp_lcd_panel_disp_on_off(g_panel, false);
     vTaskDelay(pdMS_TO_TICKS(10));
-    esp_lcd_panel_io_tx_param(g_io, 0x36, (uint8_t[]){0x60}, 1);  // MX=MV=1
+    esp_lcd_panel_io_tx_param(g_io, 0x36, (uint8_t[]){0x00}, 1);  // 竖屏
     vTaskDelay(pdMS_TO_TICKS(10));
     esp_lcd_panel_disp_on_off(g_panel, true);
 
@@ -211,6 +211,11 @@ int display_test_start(void)
     draw_test_screen(g_panel);
 
     return 0;
+}
+
+esp_lcd_panel_handle_t display_test_get_panel(void)
+{
+    return g_panel;
 }
 
 void display_test_stop(void)

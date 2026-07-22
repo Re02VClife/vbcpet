@@ -19,6 +19,10 @@ int display_test_start(void);
 /** 反初始化，释放资源。 */
 void display_test_stop(void);
 
+/** 获取 panel 句柄 (供外部调用 draw_bitmap 等) */
+#include "esp_lcd_types.h"
+esp_lcd_panel_handle_t display_test_get_panel(void);
+
 #ifdef __cplusplus
 }
 #endif
