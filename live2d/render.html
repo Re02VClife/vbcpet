@@ -29,7 +29,7 @@ const Live2DModel = L4DM.Live2DModel;
 
 console.log('1. imports OK');
 
-const W=320, H=240;
+const W=240, H=320;
 app = new PIXI.Application();
 await app.init({width:W, height:H, background:0x335577,
     resolution:1, antialias:true, preserveDrawingBuffer: true});
@@ -42,10 +42,28 @@ try {
 
     model.scale.set(0.16);
     model.x = W/2 - 6;
-    model.y = H * 0.55 + 40;
+    model.y = H * 0.55 + 120;
     if (model.anchor) model.anchor.set(0.5, 0.5);
 
     app.stage.addChild(model);
+
+    // FPS 计数器 (左上角)
+    const fpsText = new PIXI.Text({text:"FPS: --", style:{fontSize:14, fill:0x00FF00, fontFamily:"monospace"}});
+    fpsText.x = 4; fpsText.y = 4;
+    app.stage.addChild(fpsText);
+    window._frameTimes = [];
+    window._lastTime = performance.now();
+    app.ticker.add(() => {
+        const now = performance.now();
+        const dt = now - window._lastTime;
+        window._lastTime = now;
+        window._frameTimes.push(dt);
+        if (window._frameTimes.length > 60) window._frameTimes.shift();
+        if (window._frameTimes.length > 0) {
+            const avg = window._frameTimes.reduce((a,b)=>a+b,0) / window._frameTimes.length;
+            fpsText.text = "FPS:" + (1000/avg).toFixed(1);
+        }
+    });
 
     // 诊断：打印模型实际尺寸和边界
     const b = model.getBounds?.() || 'N/A';

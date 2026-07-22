@@ -45,7 +45,7 @@ def _start_http_server(root: Path, port: int = 0) -> tuple[HTTPServer, int]:
     log.info("Live2D HTTP: http://127.0.0.1:%d/ (root=%s)", port, root)
     return httpd, port
 
-async def _start_browser(width: int = 320, height: int = 240) -> tuple:
+async def _start_browser(width: int = 240, height: int = 320) -> tuple:
     from playwright.async_api import async_playwright
     pw = await async_playwright().start()
     opts_list = [
