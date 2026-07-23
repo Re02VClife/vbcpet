@@ -1,10 +1,12 @@
-/** 本地位图文字渲染 — 8×16 ASCII + ST7789V 全屏刷新
+/** 本地位图文字渲染 — ASCII 8×16 + CJK 16×16 + ST7789V 全屏刷新
  *
- * 关键发现: ST7789V 局部 CASET/PASET 更新不生效，必须用全屏 draw_bitmap。
- * 直接渲染到共享 FB 的对应位置，然后全屏刷新。
+ * ASCII 字体内嵌 (0x20-0x7E, 8×16)，CJK 字体由 tools/gen_font.py 生成 (16×16)。
+ * UTF-8 自动解码，1-3 字节序列 → Unicode code point → 位图查找。
+ * ST7789V 局部 CASET 不生效，统一全屏 draw_bitmap 刷新。
  */
 #include "text_render.h"
 #include "display_pipeline.h"
+#include "font_cjk.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
 #include <string.h>
@@ -12,8 +14,10 @@
 static const char *TAG = "text";
 static esp_lcd_panel_handle_t g_panel = NULL;
 
-/* ── 8×16 位图字体 — ASCII 0x20-0x7E (95 字符) ── */
-static const uint8_t _font[95][16] = {
+#define SWAP16(c) ((((c) & 0xFF00) >> 8) | (((c) & 0x00FF) << 8))
+
+/* ── 8×16 ASCII 位图 (0x20-0x7E) ── */
+static const uint8_t _ascii_font[95][16] = {
     [' '-0x20]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
     ['!'-0x20]={0x00,0x00,0x18,0x3C,0x3C,0x3C,0x18,0x18,0x18,0x00,0x18,0x18,0x00,0x00,0x00,0x00},
     ['"'-0x20]={0x00,0x66,0x66,0x66,0x24,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
@@ -111,18 +115,72 @@ static const uint8_t _font[95][16] = {
     ['~'-0x20]={0x00,0x00,0x76,0xDC,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
 };
 
-#define SWAP16(c) ((((c) & 0xFF00) >> 8) | (((c) & 0x00FF) << 8))
+/* ── UTF-8 解码 ── */
+
+static int utf8_decode(const char *s, uint32_t *cp) {
+    unsigned char c = (unsigned char)*s;
+    if (c < 0x80) { *cp = c; return 1; }
+    if ((c & 0xE0) == 0xC0) { *cp = ((c & 0x1F) << 6) | (s[1] & 0x3F); return 2; }
+    if ((c & 0xF0) == 0xE0) { *cp = ((c & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F); return 3; }
+    return 0; /* invalid */
+}
+
+/* 字符像素宽度 (scale 倍) */
+static inline int glyph_width(uint32_t cp, int scale) {
+    return (cp < 0x80 ? 8 : 16) * scale;
+}
+
+/* 字符像素高度 */
+static inline int glyph_height(int scale) {
+    return 16 * scale;  /* ASCII 和 CJK 都是 16 行高 */
+}
+
+/* 绘制一个 ASCII 字符到 FB */
+static void draw_ascii(uint16_t *fb, int gx, int gy, uint8_t ch,
+                       uint16_t fg, uint16_t bg, int scale) {
+    if (ch < 0x20 || ch > 0x7E) { ch = 0x20; }
+    int idx = ch - 0x20;
+    for (int fy = 0; fy < 16; fy++) {
+        uint8_t row = _ascii_font[idx][fy];
+        for (int fx = 0; fx < 8; fx++) {
+            uint16_t color = (row & (0x80 >> fx)) ? fg : bg;
+            for (int sy = 0; sy < scale; sy++)
+                for (int sx = 0; sx < scale; sx++) {
+                    int px = gx + fx * scale + sx;
+                    int py = gy + fy * scale + sy;
+                    if (px >= 0 && px < LCD_W && py >= 0 && py < LCD_H)
+                        fb[py * LCD_W + px] = color;
+                }
+        }
+    }
+}
+
+/* 绘制一个 CJK 字形到 FB (16×16 位图, 32 字节) */
+static void draw_cjk(uint16_t *fb, int gx, int gy, const uint8_t *bitmap,
+                     uint16_t fg, uint16_t bg, int scale) {
+    for (int fy = 0; fy < 16; fy++) {
+        uint16_t row = ((uint16_t)bitmap[fy * 2] << 8) | bitmap[fy * 2 + 1];
+        for (int fx = 0; fx < 16; fx++) {
+            uint16_t color = (row & (0x8000 >> fx)) ? fg : bg;
+            for (int sy = 0; sy < scale; sy++)
+                for (int sx = 0; sx < scale; sx++) {
+                    int px = gx + fx * scale + sx;
+                    int py = gy + fy * scale + sy;
+                    if (px >= 0 && px < LCD_W && py >= 0 && py < LCD_H)
+                        fb[py * LCD_W + px] = color;
+                }
+        }
+    }
+}
 
 /* ── 公开 API ── */
 
-void text_render_init(esp_lcd_panel_handle_t panel)
-{
+void text_render_init(esp_lcd_panel_handle_t panel) {
     g_panel = panel;
-    ESP_LOGI(TAG, "Text renderer ready");
+    ESP_LOGI(TAG, "Text renderer ready (ASCII + CJK %d glyphs)", FONT_CJK_COUNT);
 }
 
-void text_render_clear(uint16_t bg_color)
-{
+void text_render_clear(uint16_t bg_color) {
     if (!g_panel) return;
     uint16_t *fb = display_pipeline_get_fb();
     if (!fb) return;
@@ -131,88 +189,84 @@ void text_render_clear(uint16_t bg_color)
     esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_W, LCD_H, fb);
 }
 
-void text_render_str(int x, int y, const char *text, uint16_t fg, uint16_t bg, int scale)
-{
+void text_render_str(int x, int y, const char *text, uint16_t fg, uint16_t bg, int scale) {
     if (!g_panel || !text) return;
-    if (scale < 1) { scale = 1; } if (scale > 4) { scale = 4; }
+    if (scale < 1) { scale = 1; } else if (scale > 4) { scale = 4; }
     uint16_t *fb = display_pipeline_get_fb();
     if (!fb) return;
     uint16_t fgs = SWAP16(fg), bgs = SWAP16(bg);
 
-    int len = (int)strlen(text);
-    int bw = FONT_W * scale, bh = FONT_H * scale;
-    for (int ci = 0; ci < len; ci++) {
-        int idx = (unsigned char)text[ci];
-        if (idx < 0x20 || idx > 0x7E) idx = 0x20;
-        idx -= 0x20;
-        for (int fy = 0; fy < FONT_H; fy++) {
-            uint8_t row = _font[idx][fy];
-            for (int fx = 0; fx < FONT_W; fx++) {
-                uint16_t color = (row & (0x80 >> fx)) ? fgs : bgs;
-                for (int sy = 0; sy < scale; sy++) {
-                    for (int sx = 0; sx < scale; sx++) {
-                        int px = x + ci * bw + fx * scale + sx;
-                        int py = y + fy * scale + sy;
-                        if (px >= 0 && px < LCD_W && py >= 0 && py < LCD_H)
-                            fb[py * LCD_W + px] = color;
-                    }
-                }
-            }
+    int px = x;
+    const char *p = text;
+    while (*p) {
+        uint32_t cp;
+        int len = utf8_decode(p, &cp);
+        if (len <= 0) { p++; continue; }
+
+        if (cp < 0x80) {
+            draw_ascii(fb, px, y, (uint8_t)cp, fgs, bgs, scale);
+        } else {
+            const uint8_t *bm = font_cjk_lookup(cp);
+            if (bm) draw_cjk(fb, px, y, bm, fgs, bgs, scale);
         }
+        px += glyph_width(cp, scale);
+        p += len;
     }
-    /* 全屏刷新 (局部 CASET 不可靠) */
     esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_W, LCD_H, fb);
 }
 
 void text_render_box(int x, int y, int w_chars, int h_lines, const char *text,
-                     uint16_t fg, uint16_t bg, text_align_t align, int scale)
-{
-    (void)align;
+                     uint16_t fg, uint16_t bg, text_align_t align, int scale) {
+    (void)align;  /* TODO: CENTER alignment */
     if (!g_panel || !text) return;
-    if (scale < 1) { scale = 1; } if (scale > 4) { scale = 4; }
+    if (scale < 1) { scale = 1; } else if (scale > 4) { scale = 4; }
     uint16_t *fb = display_pipeline_get_fb();
     if (!fb) return;
     uint16_t fgs = SWAP16(fg), bgs = SWAP16(bg);
-    int bw = FONT_W * scale, bh = FONT_H * scale;
 
-    /* 直接渲染到全屏 FB 的 (x,y) 位置 */
-    int cur_x = 0, cur_y = 0;
+    /* w_chars 按 8px ASCII 宽度计算，CJK 占 2 个位置 */
+    int max_px = w_chars * 8 * scale;
+    int line_h = 16 * scale;
+    int px = 0, py = 0; /* 当前绘制位置 (像素, 相对于 x,y) */
+
     const char *p = text;
-    while (*p && cur_y < h_lines) {
-        if (*p == '\n') { cur_y++; cur_x = 0; p++; continue; }
-        if (cur_x >= w_chars) { cur_y++; cur_x = 0; if (cur_y >= h_lines) break; }
-        int idx = (unsigned char)*p;
-        if (idx < 0x20 || idx > 0x7E) { p++; cur_x++; continue; }
-        idx -= 0x20;
-        /* 单词换行 */
-        int remaining = w_chars - cur_x;
-        int word_len = 0;
-        const char *q = p;
-        while (*q && *q != '\n' && *q != ' ' && word_len < remaining) { word_len++; q++; }
-        if (word_len > remaining && cur_x > 0) { cur_y++; cur_x = 0; if (cur_y >= h_lines) break; continue; }
-        /* 给当前字符所在的矩形区域填背景色 */
-        int px0 = x + cur_x * bw, py0 = y + cur_y * bh;
-        for (int gy = 0; gy < bh && py0 + gy < LCD_H; gy++)
-            for (int gx = 0; gx < bw && px0 + gx < LCD_W; gx++)
-                fb[(py0 + gy) * LCD_W + (px0 + gx)] = bgs;
-        /* 绘制字形 */
-        for (int fy = 0; fy < FONT_H; fy++) {
-            uint8_t row = _font[idx][fy];
-            for (int fx = 0; fx < FONT_W; fx++) {
-                if (row & (0x80 >> fx)) {
-                    for (int sy = 0; sy < scale; sy++) {
-                        for (int sx = 0; sx < scale; sx++) {
-                            int gx = px0 + fx * scale + sx;
-                            int gy = py0 + fy * scale + sy;
-                            if (gx < LCD_W && gy < LCD_H) fb[gy * LCD_W + gx] = fgs;
-                        }
-                    }
-                }
+    while (*p && py < h_lines) {
+        /* 换行符 */
+        if (*p == '\n') { py++; px = 0; p++; continue; }
+
+        uint32_t cp;
+        int len = utf8_decode(p, &cp);
+        if (len <= 0) { p++; continue; }
+
+        int cw = glyph_width(cp, scale);
+
+        /* 不换行到下一行 (有字符已经在当前行时) */
+        if (px + cw > max_px && px > 0) {
+            py++; px = 0;
+            if (py >= h_lines) break;
+        }
+
+        /* 背景填充 */
+        for (int gy = 0; gy < line_h; gy++) {
+            int py2 = y + py * line_h + gy;
+            if (py2 < 0 || py2 >= LCD_H) continue;
+            for (int gx = 0; gx < cw; gx++) {
+                int px2 = x + px + gx;
+                if (px2 >= 0 && px2 < LCD_W) fb[py2 * LCD_W + px2] = bgs;
             }
         }
-        cur_x++;
-        p++;
+
+        /* 绘制字形 */
+        if (cp < 0x80) {
+            draw_ascii(fb, x + px, y + py * line_h, (uint8_t)cp, fgs, bgs, scale);
+        } else {
+            const uint8_t *bm = font_cjk_lookup(cp);
+            if (bm) draw_cjk(fb, x + px, y + py * line_h, bm, fgs, bgs, scale);
+        }
+
+        px += cw;
+        p += len;
     }
-    /* 全屏刷新 */
+
     esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_W, LCD_H, fb);
 }

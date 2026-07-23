@@ -1,0 +1,17 @@
+menu "vbcpet Display"
+
+    choice DISPLAY_BACKEND
+        prompt "Display Backend"
+        default DISPLAY_BACKEND_SPI
+        help
+            Select the display hardware backend.
+            SPI = ST7789V 240×320 (WT9932P4-TINY)
+            DSI = MIPI DSI LCD (鱼鹰 ESP32-P4C6-Core)
+
+        config DISPLAY_BACKEND_SPI
+            bool "SPI (ST7789V 240×320)"
+        config DISPLAY_BACKEND_DSI
+            bool "MIPI DSI (480×800)"
+    endchoice
+
+endmenu
