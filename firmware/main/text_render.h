@@ -29,11 +29,15 @@ void text_render_clear(uint16_t bg_color);
 void text_render_str(int x, int y, const char *text,
                      uint16_t fg, uint16_t bg, int scale);
 
+/** 计算文本在 w_chars 宽度下的换行总行数 */
+int text_render_count_lines(int w_chars, const char *text, int scale);
+
 /** 多行文本框 — w_chars 字符宽, h_lines 行高，自动换行。
+ *  scroll_lines: 跳过前 N 行 (0=从头开始), 用于滚动效果。
  *  文本超出框高时截断。 */
 void text_render_box(int x, int y, int w_chars, int h_lines,
                      const char *text, uint16_t fg, uint16_t bg,
-                     text_align_t align, int scale);
+                     text_align_t align, int scale, int scroll_lines);
 
 #ifdef __cplusplus
 }

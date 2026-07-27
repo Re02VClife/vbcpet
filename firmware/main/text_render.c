@@ -143,13 +143,13 @@ static void draw_ascii(uint16_t *fb, int gx, int gy, uint8_t ch,
     for (int fy = 0; fy < 16; fy++) {
         uint8_t row = _ascii_font[idx][fy];
         for (int fx = 0; fx < 8; fx++) {
-            uint16_t color = (row & (0x80 >> fx)) ? fg : bg;
+            if (!(row & (0x80 >> fx))) continue;  /* 透明背景 */
             for (int sy = 0; sy < scale; sy++)
                 for (int sx = 0; sx < scale; sx++) {
                     int px = gx + fx * scale + sx;
                     int py = gy + fy * scale + sy;
                     if (px >= 0 && px < LCD_W && py >= 0 && py < LCD_H)
-                        fb[py * LCD_W + px] = color;
+                        fb[py * LCD_W + px] = fg;
                 }
         }
     }
@@ -161,13 +161,13 @@ static void draw_cjk(uint16_t *fb, int gx, int gy, const uint8_t *bitmap,
     for (int fy = 0; fy < 16; fy++) {
         uint16_t row = ((uint16_t)bitmap[fy * 2] << 8) | bitmap[fy * 2 + 1];
         for (int fx = 0; fx < 16; fx++) {
-            uint16_t color = (row & (0x8000 >> fx)) ? fg : bg;
+            if (!(row & (0x8000 >> fx))) continue;  /* 透明背景 */
             for (int sy = 0; sy < scale; sy++)
                 for (int sx = 0; sx < scale; sx++) {
                     int px = gx + fx * scale + sx;
                     int py = gy + fy * scale + sy;
                     if (px >= 0 && px < LCD_W && py >= 0 && py < LCD_H)
-                        fb[py * LCD_W + px] = color;
+                        fb[py * LCD_W + px] = fg;
                 }
         }
     }
@@ -212,22 +212,46 @@ void text_render_str(int x, int y, const char *text, uint16_t fg, uint16_t bg, i
         px += glyph_width(cp, scale);
         p += len;
     }
-    esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_W, LCD_H, fb);
+    /* no-op: flush 由 display_pipeline_flush 统一执行 */
 }
 
 void text_render_box(int x, int y, int w_chars, int h_lines, const char *text,
-                     uint16_t fg, uint16_t bg, text_align_t align, int scale) {
-    (void)align;  /* TODO: CENTER alignment */
+                     uint16_t fg, uint16_t bg, text_align_t align, int scale,
+                     int scroll_lines) {
+    (void)align;
     if (!g_panel || !text) return;
     if (scale < 1) { scale = 1; } else if (scale > 4) { scale = 4; }
     uint16_t *fb = display_pipeline_get_fb();
     if (!fb) return;
+
     uint16_t fgs = SWAP16(fg), bgs = SWAP16(bg);
+
+    /* w_chars 按 8px ASCII 宽度计算，CJK 占 2 个位置 */
 
     /* w_chars 按 8px ASCII 宽度计算，CJK 占 2 个位置 */
     int max_px = w_chars * 8 * scale;
     int line_h = 16 * scale;
-    int px = 0, py = 0; /* 当前绘制位置 (像素, 相对于 x,y) */
+
+    /* ── 第一遍: 跳过 scroll_lines 行 ── */
+    int skipped = 0;
+    const char *p2 = text;
+    while (*p2 && skipped < scroll_lines) {
+        if (*p2 == '\n') { skipped++; p2++; continue; }
+        int lx = 0;
+        while (*p2 && *p2 != '\n') {
+            uint32_t cp; int len = utf8_decode(p2, &cp);
+            if (len <= 0) { p2++; continue; }
+            int cw = glyph_width(cp, scale);
+            if (lx + cw > max_px && lx > 0) break;
+            lx += cw; p2 += len;
+        }
+        skipped++;
+    }
+    text = p2;
+    if (*text == '\n') text++;
+
+    /* ── 第二遍: 渲染 h_lines 行 ── */
+    int px = 0, py = 0;
 
     const char *p = text;
     while (*p && py < h_lines) {
@@ -246,17 +270,7 @@ void text_render_box(int x, int y, int w_chars, int h_lines, const char *text,
             if (py >= h_lines) break;
         }
 
-        /* 背景填充 */
-        for (int gy = 0; gy < line_h; gy++) {
-            int py2 = y + py * line_h + gy;
-            if (py2 < 0 || py2 >= LCD_H) continue;
-            for (int gx = 0; gx < cw; gx++) {
-                int px2 = x + px + gx;
-                if (px2 >= 0 && px2 < LCD_W) fb[py2 * LCD_W + px2] = bgs;
-            }
-        }
-
-        /* 绘制字形 */
+        /* 绘制字形 (透明背景 — 只画前景像素) */
         if (cp < 0x80) {
             draw_ascii(fb, x + px, y + py * line_h, (uint8_t)cp, fgs, bgs, scale);
         } else {
@@ -267,6 +281,26 @@ void text_render_box(int x, int y, int w_chars, int h_lines, const char *text,
         px += cw;
         p += len;
     }
+    /* no-op: flush 由 display_pipeline_flush 统一执行 */
+}
 
-    esp_lcd_panel_draw_bitmap(g_panel, 0, 0, LCD_W, LCD_H, fb);
+int text_render_count_lines(int w_chars, const char *text, int scale) {
+    if (!text) return 0;
+    if (scale < 1) scale = 1; else if (scale > 4) scale = 4;
+    int max_px = w_chars * 8 * scale;
+    int total = 0;
+    const char *p = text;
+    while (*p) {
+        if (*p == '\n') { total++; p++; continue; }
+        int lx = 0;
+        while (*p && *p != '\n') {
+            uint32_t cp; int len = utf8_decode(p, &cp);
+            if (len <= 0) { p++; continue; }
+            int cw = glyph_width(cp, scale);
+            if (lx + cw > max_px && lx > 0) break;
+            lx += cw; p += len;
+        }
+        total++;
+    }
+    return total > 0 ? total : 1;
 }

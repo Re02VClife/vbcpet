@@ -38,6 +38,10 @@ uint16_t *display_pipeline_get_fb(void);
 /** 显示内嵌的启动画面 (JPEG) */
 void display_pipeline_draw_boot_screen(const uint8_t *jpeg_data, size_t len);
 
+/** 将当前帧缓冲刷到屏幕 (与 feed_jpeg 搭配: 解码不自动刷屏,
+ *  由调用者在文字叠加后统一刷新, 避免 SPI 总线并发冲突) */
+void display_pipeline_flush(void);
+
 #ifdef __cplusplus
 }
 #endif

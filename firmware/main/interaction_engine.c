@@ -26,7 +26,6 @@ static void send_ctrl(const char *json)
 {
     if (!g_transport || !json) return;
 
-    /* 构造 CTRL:<json>\n */
     char prefix[] = "CTRL:";
     int  plen = (int)strlen(prefix);
     int  jlen = (int)strlen(json);
@@ -39,6 +38,26 @@ static void send_ctrl(const char *json)
     buf[total - 1] = '\n';
 
     g_transport->send(g_transport, (uint8_t *)buf, total, 50);
+    free(buf);
+}
+
+/* 非阻塞发送 — 心跳专用, 不阻塞主循环 (防 USB RX 堆积) */
+static void send_ctrl_nb(const char *json)
+{
+    if (!g_transport || !json) return;
+
+    char prefix[] = "CTRL:";
+    int  plen = (int)strlen(prefix);
+    int  jlen = (int)strlen(json);
+    int  total = plen + jlen + 1;
+    char *buf = (char *)malloc(total);
+    if (!buf) return;
+
+    memcpy(buf, prefix, plen);
+    memcpy(buf + plen, json, jlen);
+    buf[total - 1] = '\n';
+
+    g_transport->send(g_transport, (uint8_t *)buf, total, 0);  /* timeout=0 */
     free(buf);
 }
 
@@ -72,14 +91,13 @@ void engine_on_ctrl_message(const char *json)
 
     ESP_LOGI(TAG, "Ctrl: %s", type);
 
-    /* ── say / speech: 显示对话文字 ── */
+    /* ── say / speech: 传递但暂不渲染 (排查用) ── */
     if (strcmp(type, VBC_T_SAY) == 0 || strcmp(type, VBC_EVT_SPEECH) == 0) {
         char *text = NULL;
         if (!vbc_parse_say(json, &text) || !text) { return; }
         ESP_LOGI(TAG, "Say: %s", text);
-        /* 存储文字，由主循环在主线程上下文渲染 */
         free(g_pending_text);
-        g_pending_text = text;  /* text 的所有权转移 */
+        g_pending_text = text;
         return;
     }
 
@@ -112,7 +130,7 @@ void engine_on_ctrl_message(const char *json)
             ESP_LOGI(TAG, "Permission: id=%s reason=%s", id ? id : "?", reason);
             esp_lcd_panel_handle_t panel = display_pipeline_get_panel();
             if (panel) {
-                text_render_box(0, LCD_H / 2, 30, 3, reason, 0xFFFF, 0xF800, TEXT_ALIGN_CENTER, 1);
+                text_render_box(0, LCD_H / 2, 30, 3, reason, 0xFFFF, 0xF800, TEXT_ALIGN_CENTER, 1, 0);
             }
         }
         free(id);
@@ -136,16 +154,9 @@ void engine_on_raw_line(const char *line)
 /* ── 周期轮询 ── */
 void engine_poll(void)
 {
-    int64_t now = esp_timer_get_time();
-    /* 每秒一次心跳 */
-    if (now - g_last_heartbeat > 1000000) {
-        g_last_heartbeat = now;
-        char *json = vbc_build_heartbeat(0, 0);
-        if (json) {
-            send_ctrl(json);
-            free(json);
-        }
-    }
+    /* 心跳禁用 — USB Serial JTAG TX/RX 不可共存。
+     * 存活检测由 PC 端根据推流活动判断。 */
+    (void)g_last_heartbeat;
 }
 
 /* ── 初始化和 hello ── */
@@ -166,14 +177,9 @@ int engine_init(transport_t *transport)
 
 void engine_send_hello(void)
 {
-    const char *caps[] = {"display", "text", "buttons", NULL};
-    char *json = vbc_build_hello("0.2.0", "WT9932P4-TINY", caps, 3);
-    if (json) {
-        send_ctrl(json);
-        free(json);
-        g_hello_sent = true;
-        g_last_heartbeat = esp_timer_get_time();
-    }
+    /* hello 禁用 — USB TX/RX 冲突。P4 存活由推流活动判断。 */
+    g_hello_sent = true;
+    g_last_heartbeat = esp_timer_get_time();
 }
 
 char *engine_get_pending_text(void)

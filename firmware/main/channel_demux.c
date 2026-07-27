@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "esp_log.h"
+#include "esp_timer.h"
 
 static const char *TAG = "demux";
 
@@ -14,9 +15,10 @@ static void              *g_frame_ctx;
 static void              *g_ctrl_ctx;
 static void              *g_raw_ctx;
 
-/* 行缓冲 — 最多 255 字节一行 */
-static char   g_line_buf[256];
-static size_t g_line_pos;
+/* 行缓冲 — 最多 1023 字节一行 + 500ms 超时保护 */
+static char    g_line_buf[1024];
+static size_t  g_line_pos;
+static int64_t g_line_start_us;  /* 行开始时间, 0=空闲 */
 
 /* JPEG 帧重组缓冲 — 最大 64KB */
 static uint8_t *g_jpeg_buf = NULL;
@@ -99,17 +101,27 @@ void channel_demux_poll(void)
 {
     if (!g_transport || !g_jpeg_buf) return;
 
+    /* 行超时: 500ms 无 '\\n' → 重置缓冲 (防止串口丢字节导致永久卡死) */
+    if (g_line_pos > 0 && g_line_start_us > 0) {
+        if (esp_timer_get_time() - g_line_start_us > 500000) {
+            ESP_LOGW(TAG, "Line timeout, reset (%d bytes dropped)", (int)g_line_pos);
+            g_line_pos = 0;
+            g_line_start_us = 0;
+        }
+    }
+
     uint8_t ch;
     int n = g_transport->recv(g_transport, &ch, 1, 0);  /* 0ms = non-blocking */
     if (n != 1) return;
 
     if (ch == '\n') {
-        if (g_line_pos == 0) return;  /* 空行跳过 */
+        if (g_line_pos == 0) { g_line_start_us = 0; return; }  /* 空行跳过 */
 
         if (g_line_pos > 0 && g_line_buf[g_line_pos - 1] == '\r')
             g_line_pos--;
         g_line_buf[g_line_pos] = '\0';
         g_line_pos = 0;
+        g_line_start_us = 0;
 
         if (strncmp(g_line_buf, "FRAME:", 6) == 0) {
             handle_frame_line();
@@ -121,6 +133,7 @@ void channel_demux_poll(void)
                 g_raw_handler(g_line_buf, g_raw_ctx);
         }
     } else if (g_line_pos < sizeof(g_line_buf) - 1) {
+        if (g_line_pos == 0) g_line_start_us = esp_timer_get_time();
         g_line_buf[g_line_pos++] = (char)ch;
     }
     /* 行溢出: 静默丢弃，等下一个 \n */
