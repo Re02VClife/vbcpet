@@ -252,6 +252,7 @@ class UnifiedBridge:
         print("\n┌─────────────────────────────────────────────┐")
         print("│ 输入文字 → 发给 Claude                       │")
         print("│ [1]=允许  [2]=拒绝  [3]=允许+记住  [4]=面板   │")
+        print("│ mood+10 / mood-5 → 直接调整心情              │")
         print("│ /q=退出                                      │")
         print("└─────────────────────────────────────────────┘\n")
 
@@ -283,6 +284,14 @@ class UnifiedBridge:
             elif line == "4":
                 print("[panel] 面板 (v0.2 占位) — 发送 panel 请求到 P4")
                 self._send_ctrl({"t": "panel", "tokens": {"input": 0, "output": 0, "cache_read": 0, "total": 0}, "cost_usd": 0.0})
+            elif line.startswith("mood") and (line[4:5] in "+-"):
+                # mood+10 / mood-5 直接调整心情值
+                try:
+                    delta = int(line[4:])
+                    await self._adjust_mood(delta)
+                    print(f"   心情 → {self._mood}")
+                except ValueError:
+                    print("   用法: mood+10 或 mood-5")
             else:
                 print(f"[user] {line}")
                 if self._driver:
