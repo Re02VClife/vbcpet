@@ -112,20 +112,27 @@ window.setExpression=function(n,v){
 window._emotionTimer=null;
 window._currentEmotion='neutral';
 window.applyEmotion=function(name,duration){
-  duration=duration||400;
+  duration=duration||500;
   var model=window._model;
   if(!model)return false;
   var target=EMOTION_PRESETS[name];
   if(!target){console.warn('Unknown emotion:',name);return false}
+
+  // 先停掉 idle motion (否则每帧动画会覆盖我们的参数)
+  var im=model.internalModel;
+  if(im&&im.motionManager){
+    im.motionManager.stopAllMotions();
+  }
+
   window._currentEmotion=name;
   var keys=Object.keys(target);
-  // 读取当前值作为起点
   var start={};
   for(var i=0;i<keys.length;i++){
     try{start[keys[i]]=model.getParameterValue(keys[i])}catch(e){start[keys[i]]=0}
   }
   var t0=performance.now();
   if(window._emotionTimer)clearInterval(window._emotionTimer);
+  if(window._emotionResumeTimer)clearTimeout(window._emotionResumeTimer);
   window._emotionTimer=setInterval(function(){
     var elapsed=performance.now()-t0;
     var t=Math.min(elapsed/duration,1);
@@ -135,7 +142,13 @@ window.applyEmotion=function(name,duration){
       var v=start[k]+(target[k]-start[k])*ease;
       try{model.setParameterValue(k,v)}catch(e){}
     }
-    if(t>=1){clearInterval(window._emotionTimer);window._emotionTimer=null}
+    if(t>=1){
+      clearInterval(window._emotionTimer);window._emotionTimer=null;
+      // 过渡完成后 5 秒再恢复 idle 动画
+      window._emotionResumeTimer=setTimeout(function(){
+        try{model.motion('Idle');}catch(e){}
+      },5000);
+    }
   },16);
   console.log('emotion:',name,'->',keys.length,'params,',duration,'ms');
   return true;
