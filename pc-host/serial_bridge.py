@@ -62,6 +62,8 @@ class UnifiedBridge:
         self._frame_count = 0
         self._fps_t0 = time.time()
         self._ctrl_queue: asyncio.Queue = None  # 初始化在 run() 中
+        self._mood = 60  # 心情值 0-100, 基线 60
+        self._mood_t0 = time.time()
 
     # ── PC → P4: CTRL 消息入队 (非阻塞) ──
 
@@ -81,28 +83,43 @@ class UnifiedBridge:
         except Exception:
             return False
 
-    async def _l2d_emotion(self, emotion: str, duration: int = 400) -> bool:
-        """调用 render.html 的 applyEmotion — 带缓入缓出的参数过渡"""
-        if not self._page: return False
+    async def _apply_mood(self) -> None:
+        """将心情值推送到 Live2D"""
+        if not self._page: return
         try:
-            return await self._page.evaluate(
-                f'() => window.applyEmotion("{emotion}", {duration})')
+            await self._page.evaluate(f'() => window.setMood({self._mood})')
         except Exception:
-            return False
+            pass
+
+    async def _adjust_mood(self, delta: int) -> None:
+        """调整心情值并同步到 Live2D"""
+        self._mood = max(0, min(100, self._mood + delta))
+        self._mood_t0 = time.time()
+        await self._apply_mood()
+
+    async def _mood_tick(self) -> None:
+        """心情随时间缓慢回归基线 60 (每10秒漂移1点)"""
+        while True:
+            await asyncio.sleep(10)
+            if self._mood != 60 and time.time() - self._mood_t0 > 15:
+                drift = 1 if self._mood < 60 else -1
+                self._mood += drift
+                await self._apply_mood()
 
     async def _apply_l2d_status(self, state: str) -> None:
-        """Claude 状态 → Live2D 动作 + 表情"""
-        emo_map = {
-            "thinking": ("Idle", "neutral"),
-            "running":  ("Idle", "neutral"),
-            "editing":  ("Idle", "sad"),      # worried → sad (Hiyori 无 worried 预设)
-            "done":     ("Idle", "happy"),
-            "error":    ("Idle", "sad"),
-            "blocked":  ("Idle", "surprised"),
+        """Claude 状态 -> 动作 + 心情偏移"""
+        mood_deltas = {
+            "thinking": -2,
+            "running":   0,
+            "editing":  +3,
+            "done":     +8,
+            "error":   -15,
+            "blocked":  +5,
         }
-        motion, emotion = emo_map.get(state, ("Idle", "neutral"))
-        await self._l2d_motion(motion)
-        await self._l2d_emotion(emotion)
+        delta = mood_deltas.get(state, 0)
+        await self._adjust_mood(delta)
+        await self._l2d_motion("Idle")
+
 
     # ── AgentDriver 回调 ──
 
@@ -213,7 +230,7 @@ class UnifiedBridge:
             self._frame_count += 1
             if self._frame_count % 30 == 0:
                 fps = self._frame_count / (time.time() - self._fps_t0)
-                print(f"  [stream] {self._frame_count} frames, {fps:.1f} fps, {len(jpeg)//1024}KB/frame", flush=True)
+                print(f"  [stream] {self._frame_count} frames, {fps:.1f} fps, {len(jpeg)//1024}KB/frame, mood:{self._mood}", flush=True)
 
             # 3. 排空 P4 回复 (防 USB TX 缓冲满 → 设备冻结)
             try:
@@ -256,10 +273,13 @@ class UnifiedBridge:
                 sys.exit(0)
             elif line == "1":
                 await self._resolve_current(True, False)
+                await self._adjust_mood(+5)
             elif line == "2":
                 await self._resolve_current(False, False)
+                await self._adjust_mood(-3)
             elif line == "3":
                 await self._resolve_current(True, True)
+                await self._adjust_mood(+5)
             elif line == "4":
                 print("[panel] 面板 (v0.2 占位) — 发送 panel 请求到 P4")
                 self._send_ctrl({"t": "panel", "tokens": {"input": 0, "output": 0, "cache_read": 0, "total": 0}, "cost_usd": 0.0})
@@ -267,6 +287,7 @@ class UnifiedBridge:
                 print(f"[user] {line}")
                 if self._driver:
                     await self._driver.send_user(line)
+                    await self._adjust_mood(+3)  # 交流是正向的
 
     async def _resolve_current(self, allow: bool, remember: bool) -> None:
         if not self._pending_perm:
@@ -334,6 +355,7 @@ class UnifiedBridge:
         results = await asyncio.gather(
             self._io_loop(),
             self._read_stdin(),
+            self._mood_tick(),
             return_exceptions=True,
         )
         for r in results:

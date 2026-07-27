@@ -16,14 +16,86 @@
 <script>
 window._ready=false;window._model=null;window._motions=[];window._expressions=[];
 window._emotions=['neutral','happy','sad','surprised','angry'];
+window._mood=60;  /* 心情值 0-100, 基线 60 */
+window._moodText=null;
 
 /* 表情参数预设 — 由 tune_expressions.html 导出，用户可替换 */
 const EMOTION_PRESETS = {
-  neutral:  {ParamEyeLOpen:1,ParamEyeROpen:1,ParamEyeLSmile:0,ParamEyeRSmile:0,ParamBrowLY:0,ParamBrowRY:0,ParamBrowLAngle:0,ParamBrowRAngle:0,ParamBrowLForm:0,ParamBrowRForm:0,ParamMouthOpenY:0,ParamMouthForm:0,ParamCheek:0},
-  happy:    {ParamEyeLOpen:0.85,ParamEyeROpen:0.85,ParamEyeLSmile:0.7,ParamEyeRSmile:0.7,ParamBrowLY:0.2,ParamBrowRY:0.2,ParamBrowLAngle:0,ParamBrowRAngle:0,ParamBrowLForm:0,ParamBrowRForm:0,ParamMouthOpenY:0.5,ParamMouthForm:0.2,ParamCheek:0.6},
-  sad:      {ParamEyeLOpen:0.75,ParamEyeROpen:0.75,ParamEyeLSmile:-0.3,ParamEyeRSmile:-0.3,ParamBrowLY:-0.5,ParamBrowRY:-0.5,ParamBrowLAngle:-0.2,ParamBrowRAngle:-0.2,ParamBrowLForm:0,ParamBrowRForm:0,ParamMouthOpenY:0.05,ParamMouthForm:-0.3,ParamCheek:0},
-  surprised:{ParamEyeLOpen:1.2,ParamEyeROpen:1.2,ParamEyeLSmile:0.2,ParamEyeRSmile:0.2,ParamBrowLY:0.7,ParamBrowRY:0.7,ParamBrowLAngle:0,ParamBrowRAngle:0,ParamBrowLForm:0,ParamBrowRForm:0,ParamMouthOpenY:0.85,ParamMouthForm:0,ParamCheek:0.2},
-  angry:    {ParamEyeLOpen:1,ParamEyeROpen:1,ParamEyeLSmile:-0.5,ParamEyeRSmile:-0.5,ParamBrowLY:-0.7,ParamBrowRY:-0.7,ParamBrowLAngle:-0.3,ParamBrowRAngle:-0.3,ParamBrowLForm:-0.2,ParamBrowRForm:-0.2,ParamMouthOpenY:0.1,ParamMouthForm:-0.2,ParamCheek:0.3},
+  neutral:   {
+  "ParamEyeLOpen": 1,
+  "ParamEyeROpen": 1,
+  "ParamEyeLSmile": 0,
+  "ParamEyeRSmile": 0,
+  "ParamBrowLY": 0,
+  "ParamBrowRY": 0,
+  "ParamBrowLAngle": 0,
+  "ParamBrowRAngle": 0,
+  "ParamBrowLForm": 0,
+  "ParamBrowRForm": 0,
+  "ParamMouthOpenY": 0,
+  "ParamMouthForm": 0,
+  "ParamCheek": 0
+},
+  happy: {
+  "ParamEyeLOpen": 0,
+  "ParamEyeROpen": 0,
+  "ParamEyeLSmile": 0.76,
+  "ParamEyeRSmile": 0.76,
+  "ParamBrowLY": -1,
+  "ParamBrowRY": -1,
+  "ParamBrowLAngle": 0.08,
+  "ParamBrowRAngle": 0.09,
+  "ParamBrowLForm": 0.64,
+  "ParamBrowRForm": 0.63,
+  "ParamMouthOpenY": 0.06,
+  "ParamMouthForm": 0.25,
+  "ParamCheek": 0.39
+},
+  sad:     {
+  "ParamEyeLOpen": 0.41,
+  "ParamEyeROpen": 0.41,
+  "ParamEyeLSmile": -1,
+  "ParamEyeRSmile": -1,
+  "ParamBrowLY": -1,
+  "ParamBrowRY": -1,
+  "ParamBrowLAngle": -0.81,
+  "ParamBrowRAngle": -0.81,
+  "ParamBrowLForm": -1,
+  "ParamBrowRForm": -1,
+  "ParamMouthOpenY": 0.59,
+  "ParamMouthForm": -0.36,
+  "ParamCheek": 0
+},
+  surprised:{
+  "ParamEyeLOpen": 1.2,
+  "ParamEyeROpen": 1.2,
+  "ParamEyeLSmile": 0.2,
+  "ParamEyeRSmile": 0.19,
+  "ParamBrowLY": 0.83,
+  "ParamBrowRY": 0.83,
+  "ParamBrowLAngle": 0.4,
+  "ParamBrowRAngle": 0.4,
+  "ParamBrowLForm": 0.79,
+  "ParamBrowRForm": 0.79,
+  "ParamMouthOpenY": 1.5,
+  "ParamMouthForm": -0.31,
+  "ParamCheek": 1
+},
+  angry:    {
+  "ParamEyeLOpen": 0,
+  "ParamEyeROpen": 0,
+  "ParamEyeLSmile": -1,
+  "ParamEyeRSmile": -1,
+  "ParamBrowLY": -1,
+  "ParamBrowRY": -1,
+  "ParamBrowLAngle": -1,
+  "ParamBrowRAngle": -1,
+  "ParamBrowLForm": -1,
+  "ParamBrowRForm": -1,
+  "ParamMouthOpenY": 0.73,
+  "ParamMouthForm": -0.35,
+  "ParamCheek": 1
+},
 };
 window._emotionPresets = EMOTION_PRESETS;
 
@@ -69,8 +141,22 @@ window.applyEmotion=function(name,duration){
   return true;
 };
 window.getStatus=function(){
-  return{ready:window._ready,motions:window._motions,expressions:window._expressions,emotions:window._emotions,currentEmotion:window._currentEmotion};
+  return{ready:window._ready,motions:window._motions,expressions:window._expressions,emotions:window._emotions,currentEmotion:window._currentEmotion,mood:window._mood};
 };
+/* 心情值 0-100, <40=sad, 40-60=neutral, >60=happy, >80=surprised */
+window.setMood=function(v){
+  v=Math.max(0,Math.min(100,v));
+  window._mood=v;
+  if(window._moodText)window._moodText.text='Mood:'+v;
+  var emotion='neutral';
+  if(v>=80)emotion='surprised';
+  else if(v>=65)emotion='happy';
+  else if(v<=25)emotion='angry';
+  else if(v<=45)emotion='sad';
+  window.applyEmotion(emotion,300);
+  return v;
+};
+window.getMood=function(){return window._mood;};
 </script>
 
 <script type="module">
@@ -104,6 +190,11 @@ try {
     const fpsText = new PIXI.Text({text:"FPS: --", style:{fontSize:14, fill:0x00FF00, fontFamily:"monospace"}});
     fpsText.x = 4; fpsText.y = 4;
     app.stage.addChild(fpsText);
+    // 心情值 (右上角)
+    const moodText = new PIXI.Text({text:'Mood:60', style:{fontSize:14, fill:0xFFAA00, fontFamily:'monospace', align:'right'}});
+    moodText.x = W - 80; moodText.y = 4;
+    app.stage.addChild(moodText);
+    window._moodText = moodText;
     window._frameTimes = [];
     window._lastTime = performance.now();
     app.ticker.add(() => {
