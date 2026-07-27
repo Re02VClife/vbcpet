@@ -12,12 +12,62 @@
 
 <script>window.process={env:{}};</script>
 
-<!-- 占位 stub：避免外部调不到 -->
+<!-- 表情预设（用户在 tune_expressions.html 调好后替换此对象） -->
 <script>
 window._ready=false;window._model=null;window._motions=[];window._expressions=[];
-window.playMotion=function(n){console.log('stub:',n);};
-window.setExpression=function(n,v){console.log('stub:',n,v);};
-window.getStatus=function(){return{ready:false,motions:[],expressions:[]};};
+window._emotions=['neutral','happy','sad','surprised','angry'];
+
+/* 表情参数预设 — 由 tune_expressions.html 导出，用户可替换 */
+const EMOTION_PRESETS = {
+  neutral:  {ParamEyeLOpen:1,ParamEyeROpen:1,ParamEyeLSmile:0,ParamEyeRSmile:0,ParamBrowLY:0,ParamBrowRY:0,ParamBrowLAngle:0,ParamBrowRAngle:0,ParamBrowLForm:0,ParamBrowRForm:0,ParamMouthOpenY:0,ParamMouthForm:0,ParamCheek:0},
+  happy:    {ParamEyeLOpen:0.85,ParamEyeROpen:0.85,ParamEyeLSmile:0.7,ParamEyeRSmile:0.7,ParamBrowLY:0.2,ParamBrowRY:0.2,ParamBrowLAngle:0,ParamBrowRAngle:0,ParamBrowLForm:0,ParamBrowRForm:0,ParamMouthOpenY:0.5,ParamMouthForm:0.2,ParamCheek:0.6},
+  sad:      {ParamEyeLOpen:0.75,ParamEyeROpen:0.75,ParamEyeLSmile:-0.3,ParamEyeRSmile:-0.3,ParamBrowLY:-0.5,ParamBrowRY:-0.5,ParamBrowLAngle:-0.2,ParamBrowRAngle:-0.2,ParamBrowLForm:0,ParamBrowRForm:0,ParamMouthOpenY:0.05,ParamMouthForm:-0.3,ParamCheek:0},
+  surprised:{ParamEyeLOpen:1.2,ParamEyeROpen:1.2,ParamEyeLSmile:0.2,ParamEyeRSmile:0.2,ParamBrowLY:0.7,ParamBrowRY:0.7,ParamBrowLAngle:0,ParamBrowRAngle:0,ParamBrowLForm:0,ParamBrowRForm:0,ParamMouthOpenY:0.85,ParamMouthForm:0,ParamCheek:0.2},
+  angry:    {ParamEyeLOpen:1,ParamEyeROpen:1,ParamEyeLSmile:-0.5,ParamEyeRSmile:-0.5,ParamBrowLY:-0.7,ParamBrowRY:-0.7,ParamBrowLAngle:-0.3,ParamBrowRAngle:-0.3,ParamBrowLForm:-0.2,ParamBrowRForm:-0.2,ParamMouthOpenY:0.1,ParamMouthForm:-0.2,ParamCheek:0.3},
+};
+window._emotionPresets = EMOTION_PRESETS;
+
+/* 通用播放动作 (PC bridge 调用) */
+window.playMotion=function(n){
+  if(window._model)try{window._model.motion(n);console.log('motion:',n);return true}catch(e){console.error('motion err:',e);return false}
+  console.log('motion stub:',n);return false;
+};
+/* 直接设表情参数 (PC bridge 调用) */
+window.setExpression=function(n,v){
+  console.log('setExpression stub (use applyEmotion):',n,v);return false;
+};
+/* 带过渡的表情切换 (推荐) */
+window._emotionTimer=null;
+window._currentEmotion='neutral';
+window.applyEmotion=function(name,duration){
+  duration=duration||400;
+  var model=window._model;
+  if(!model||!model.internalModel)return false;
+  var im=model.internalModel;
+  var target=EMOTION_PRESETS[name];
+  if(!target){console.warn('Unknown emotion:',name);return false}
+  window._currentEmotion=name;
+  var start={}; var keys=Object.keys(target);
+  for(var i=0;i<keys.length;i++){try{start[keys[i]]=im.parameterGetValue(keys[i])}catch(e){start[keys[i]]=0}}
+  var t0=performance.now();
+  if(window._emotionTimer)clearInterval(window._emotionTimer);
+  window._emotionTimer=setInterval(function(){
+    var elapsed=performance.now()-t0;
+    var t=Math.min(elapsed/duration,1);
+    var ease=t<0.5?2*t*t:-1+(4-2*t)*t; // easeInOutQuad
+    for(var i=0;i<keys.length;i++){
+      var k=keys[i];
+      var v=start[k]+(target[k]-start[k])*ease;
+      try{im.parameterSetValue(k,v)}catch(e){}
+    }
+    if(t>=1){clearInterval(window._emotionTimer);window._emotionTimer=null}
+  },16);
+  console.log('emotion:',name,'->',Object.keys(target).length,'params,',duration,'ms');
+  return true;
+};
+window.getStatus=function(){
+  return{ready:window._ready,motions:window._motions,expressions:window._expressions,emotions:window._emotions,currentEmotion:window._currentEmotion};
+};
 </script>
 
 <script type="module">
@@ -81,19 +131,7 @@ try {
     console.log('4. SUCCESS. motions:', window._motions, 'expressions:', window._expressions);
 
     window._ready = true;
-
-    window.playMotion = function(name) {
-        try{model.motion(name);console.log('motion:',name);return true}
-        catch(e){console.error('motion err:',e);return false}
-    };
-    window.setExpression = function(name,value) {
-        try{model.expression(name,value??1);console.log('expr:',name,value);return true}
-        catch(e){console.error('expr err:',e);return false}
-    };
-    window.getStatus = function() {
-        return{ready:true,motions:window._motions,expressions:window._expressions};
-    };
-} catch(err) {
+	} catch(err) {
     console.error('Live2D load failed:', err.message, err.stack);
     window._ready = true;
 }

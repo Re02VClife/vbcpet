@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>vbcpet — Hiyori 表情调参工具</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', monospace, sans-serif; background: #1a1a2e; color: #eee; display: flex; height: 100vh; overflow: hidden; }
+#canvas-wrap { flex: 0 0 500px; display: flex; align-items: center; justify-content: center; background: #16213e; }
+canvas { display: block; border-radius: 8px; }
+#panel { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+h2 { font-size: 16px; color: #e94560; border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 4px; }
+.preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.preset-row button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 13px; background: #0f3460; color: #eee; }
+.preset-row button:hover { background: #e94560; border-color: #e94560; }
+.param-group { margin-bottom: 6px; }
+.param-row { display: flex; align-items: center; gap: 8px; margin: 2px 0; font-size: 12px; }
+.param-row label { flex: 0 0 160px; text-align: right; color: #aaa; }
+.param-row input[type=range] { flex: 1; accent-color: #e94560; }
+.param-row .val { flex: 0 0 42px; text-align: right; color: #0f9; font-size: 11px; }
+#export-btn { margin-top: 15px; padding: 10px; background: #e94560; border: none; border-radius: 6px; color: #fff; font-size: 15px; cursor: pointer; }
+#export-btn:hover { background: #ff6b81; }
+#status { font-size: 12px; color: #888; }
+</style>
+</head>
+<body>
+
+<div id="canvas-wrap"><canvas id="l2d"></canvas></div>
+
+<div id="panel">
+  <h2>🎭 表情预设</h2>
+  <div class="preset-row" id="presets"></div>
+
+  <h2>👁 眼睛</h2>
+  <div class="param-group" id="group-eyes"></div>
+
+  <h2>😐 眉</h2>
+  <div class="param-group" id="group-brows"></div>
+
+  <h2>👄 口</h2>
+  <div class="param-group" id="group-mouth"></div>
+
+  <h2>😊 其他</h2>
+  <div class="param-group" id="group-other"></div>
+
+  <button id="export-btn">📋 导出 JSON (复制到 render.html)</button>
+  <pre id="export-out" style="background:#0a0a1a;padding:10px;border-radius:6px;font-size:11px;max-height:200px;overflow:auto;display:none;"></pre>
+  <div id="status">加载模型中…</div>
+</div>
+
+<!-- Live2D 依赖 -->
+<script src="live2dcubismcore.min.js"></script>
+<script type="importmap">
+{"imports":{"pixi.js":"./node_modules/pixi.js/dist/pixi.mjs","@jannchie/pixi-live2d-display":"./node_modules/@jannchie/pixi-live2d-display/dist/cubism4.es.js"}}
+</script>
+<script>window.process={env:{}};</script>
+
+<script type="module">
+import * as PIXI from 'pixi.js';
+const L4DM = await import('@jannchie/pixi-live2d-display');
+const { Live2DModel } = L4DM;
+
+// ── 初始化 PIXI ──
+const W = 400, H = 500;
+const app = new PIXI.Application();
+await app.init({ width: W, height: H, background: 0x335577,
+  resolution: 1, antialias: true, preserveDrawingBuffer: true });
+document.getElementById('canvas-wrap').appendChild(app.canvas);
+
+// ── 加载模型 ──
+const model = await Live2DModel.from('./Hiyori/Hiyori.model3.json', { autoHitTest: false, autoFocus: false });
+model.scale.set(0.22);
+model.x = W / 2 - 4;
+model.y = H * 0.55 + 140;
+if (model.anchor) model.anchor.set(0.5, 0.5);
+app.stage.addChild(model);
+window._model = model;
+
+// ── 表情参数定义 ──
+const PARAM_DEFS = [
+  // { id, label, group, min, max, step, default }
+  { id: 'ParamEyeLOpen',    label: '左眼开闭',   group: 'eyes',  min: 0, max: 1.5, step: 0.01, default: 1 },
+  { id: 'ParamEyeROpen',    label: '右眼开闭',   group: 'eyes',  min: 0, max: 1.5, step: 0.01, default: 1 },
+  { id: 'ParamEyeLSmile',   label: '左眼笑',     group: 'eyes',  min: -1, max: 1.5, step: 0.01, default: 0 },
+  { id: 'ParamEyeRSmile',   label: '右眼笑',     group: 'eyes',  min: -1, max: 1.5, step: 0.01, default: 0 },
+  { id: 'ParamBrowLY',      label: '左眉上下',   group: 'brows', min: -1, max: 1, step: 0.01, default: 0 },
+  { id: 'ParamBrowRY',      label: '右眉上下',   group: 'brows', min: -1, max: 1, step: 0.01, default: 0 },
+  { id: 'ParamBrowLAngle',  label: '左眉角度',   group: 'brows', min: -1, max: 1, step: 0.01, default: 0 },
+  { id: 'ParamBrowRAngle',  label: '右眉角度',   group: 'brows', min: -1, max: 1, step: 0.01, default: 0 },
+  { id: 'ParamBrowLForm',   label: '左眉变形',   group: 'brows', min: -1, max: 1, step: 0.01, default: 0 },
+  { id: 'ParamBrowRForm',   label: '右眉变形',   group: 'brows', min: -1, max: 1, step: 0.01, default: 0 },
+  { id: 'ParamMouthOpenY',  label: '口开闭',     group: 'mouth', min: 0, max: 1.5, step: 0.01, default: 0 },
+  { id: 'ParamMouthForm',   label: '口变形',     group: 'mouth', min: -1, max: 1, step: 0.01, default: 0 },
+  { id: 'ParamCheek',       label: '脸颊红晕',   group: 'other', min: 0, max: 1, step: 0.01, default: 0 },
+];
+
+// ── 预设值（anatomical 合理起点，用户可微调）──
+const PRESETS = {
+  neutral: {
+    ParamEyeLOpen: 1,   ParamEyeROpen: 1,   ParamEyeLSmile: 0,   ParamEyeRSmile: 0,
+    ParamBrowLY: 0,     ParamBrowRY: 0,     ParamBrowLAngle: 0,  ParamBrowRAngle: 0,
+    ParamBrowLForm: 0,  ParamBrowRForm: 0,  ParamMouthOpenY: 0,  ParamMouthForm: 0,
+    ParamCheek: 0
+  },
+  happy: {
+    ParamEyeLOpen: 0.85,ParamEyeROpen: 0.85,ParamEyeLSmile: 0.7, ParamEyeRSmile: 0.7,
+    ParamBrowLY: 0.2,   ParamBrowRY: 0.2,   ParamBrowLAngle: 0,  ParamBrowRAngle: 0,
+    ParamBrowLForm: 0,  ParamBrowRForm: 0,  ParamMouthOpenY: 0.5,ParamMouthForm: 0.2,
+    ParamCheek: 0.6
+  },
+  sad: {
+    ParamEyeLOpen: 0.75,ParamEyeROpen: 0.75,ParamEyeLSmile: -0.3,ParamEyeRSmile: -0.3,
+    ParamBrowLY: -0.5,  ParamBrowRY: -0.5,  ParamBrowLAngle: -0.2,ParamBrowRAngle: -0.2,
+    ParamBrowLForm: 0,  ParamBrowRForm: 0,  ParamMouthOpenY: 0.05,ParamMouthForm: -0.3,
+    ParamCheek: 0
+  },
+  surprised: {
+    ParamEyeLOpen: 1.2, ParamEyeROpen: 1.2, ParamEyeLSmile: 0.2, ParamEyeRSmile: 0.2,
+    ParamBrowLY: 0.7,   ParamBrowRY: 0.7,   ParamBrowLAngle: 0,  ParamBrowRAngle: 0,
+    ParamBrowLForm: 0,  ParamBrowRForm: 0,  ParamMouthOpenY: 0.85,ParamMouthForm: 0,
+    ParamCheek: 0.2
+  },
+  angry: {
+    ParamEyeLOpen: 1,   ParamEyeROpen: 1,   ParamEyeLSmile: -0.5,ParamEyeRSmile: -0.5,
+    ParamBrowLY: -0.7,  ParamBrowRY: -0.7,  ParamBrowLAngle: -0.3,ParamBrowRAngle: -0.3,
+    ParamBrowLForm: -0.2,ParamBrowRForm:-0.2,ParamMouthOpenY: 0.1,ParamMouthForm: -0.2,
+    ParamCheek: 0.3
+  },
+};
+
+// ── 当前值 ──
+const values = {};
+PARAM_DEFS.forEach(p => values[p.id] = p.default);
+
+// ── 应用到模型 ──
+function applyParams() {
+  const im = model.internalModel;
+  if (!im) return;
+  for (const [id, v] of Object.entries(values)) {
+    try { im.parameterSetValue(id, v); } catch(e) {}
+  }
+}
+
+// ── 加载预设 ──
+function loadPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  for (const [id, v] of Object.entries(p)) values[id] = v;
+  syncSliders();
+  applyParams();
+}
+
+// ── 构建 UI ──
+const groups = { eyes: [], brows: [], mouth: [], other: [] };
+PARAM_DEFS.forEach(p => groups[p.group].push(p));
+
+function makeSlider(p) {
+  const row = document.createElement('div'); row.className = 'param-row';
+  const label = document.createElement('label'); label.textContent = p.label;
+  const input = document.createElement('input'); input.type = 'range';
+  input.min = p.min; input.max = p.max; input.step = p.step; input.value = p.default;
+  const val = document.createElement('span'); val.className = 'val'; val.textContent = p.default.toFixed(2);
+  input.addEventListener('input', () => {
+    values[p.id] = parseFloat(input.value);
+    val.textContent = input.value;
+    applyParams();
+  });
+  row.appendChild(label); row.appendChild(input); row.appendChild(val);
+  return row;
+}
+
+function syncSliders() {
+  document.querySelectorAll('.param-row').forEach(row => {
+    const label = row.querySelector('label');
+    const input = row.querySelector('input');
+    const val = row.querySelector('.val');
+    for (const p of PARAM_DEFS) {
+      if (p.label === label.textContent) {
+        input.value = values[p.id];
+        val.textContent = values[p.id].toFixed(2);
+        break;
+      }
+    }
+  });
+}
+
+Object.entries(groups).forEach(([gid, params]) => {
+  const container = document.getElementById(`group-${gid}`);
+  params.forEach(p => container.appendChild(makeSlider(p)));
+});
+
+// ── 预设按钮 ──
+const presetRow = document.getElementById('presets');
+Object.keys(PRESETS).forEach(name => {
+  const btn = document.createElement('button');
+  btn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+  btn.addEventListener('click', () => loadPreset(name));
+  presetRow.appendChild(btn);
+});
+
+// ── 导出 ──
+document.getElementById('export-btn').addEventListener('click', () => {
+  const json = JSON.stringify(values, null, 2);
+  const out = document.getElementById('export-out');
+  out.style.display = 'block';
+  out.textContent = '// 复制以下内容到 render.html 的 EMOTION_PRESETS 对象中：\n' +
+    `"default": ${json},\n\n` +
+    '// 然后在所有预设调整完后，也导出其他情绪名：happy, sad, surprised, angry';
+  navigator.clipboard.writeText(json).then(() => {
+    document.getElementById('status').textContent = '✅ 已复制到剪贴板！';
+  });
+});
+
+// ── 完成 ──
+applyParams();
+document.getElementById('status').textContent = '✅ 模型就绪 — 拖动滑块实时调参，点预设按钮快速切换';
+console.log('Hiyori 表情调参工具就绪');
+console.log('可调参数:', PARAM_DEFS.map(p => p.id).join(', '));
+</script>
+</body>
+</html>
