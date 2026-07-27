@@ -57,12 +57,14 @@ h2 { font-size: 16px; color: #e94560; border-bottom: 1px solid #333; padding-bot
 
 <script type="module">
 import * as PIXI from 'pixi.js';
+window.PIXI = PIXI;  /* pixi-live2d-display 需要全局 PIXI ticker */
 const L4DM = await import('@jannchie/pixi-live2d-display');
 const { Live2DModel } = L4DM;
 
 // ── 初始化 PIXI ──
 const W = 400, H = 500;
 const app = new PIXI.Application();
+window._app = app;  /* applyParams 需要手动渲染 */
 await app.init({ width: W, height: H, background: 0x335577,
   resolution: 1, antialias: true, preserveDrawingBuffer: true });
 document.getElementById('canvas-wrap').appendChild(app.canvas);
@@ -74,6 +76,53 @@ model.x = W / 2 - 4;
 model.y = H * 0.55 + 140;
 if (model.anchor) model.anchor.set(0.5, 0.5);
 app.stage.addChild(model);
+
+// 等一帧让子系统初始化，然后彻底禁用自动动画
+setTimeout(() => {
+  const im = model.internalModel;
+  if (!im) return;
+  im.updateNaturalMovements = function() {};
+  im.setBreathParameters = function() {};
+  if (im.motionManager) {
+    im.motionManager.stopAllMotions();
+    im.motionManager.update = function() {};
+    im.motionManager.startMotion = function() {};
+    im.motionManager.startRandomMotion = function() {};
+  }
+  // 禁用眨眼子系统 (否则眼睛参数会一直被覆盖)
+  im.setEyeBlinkEnabled(false);
+  console.log('动画已禁用，eyeBlink 已关闭，参数全由用户控制');
+}, 500);
+
+// applyParams: 直接设参数，无任何覆盖
+window.applyParams = function() {
+  if (!model) return;
+  for (const [id, v] of Object.entries(values)) {
+    try { model.setParameterValue(id, v); } catch(e) {}
+  }
+};
+
+// 暴露调试 API 到全局
+window._debugModel = function() {
+  const m = window._model;
+  if (!m) { console.log('no model'); return; }
+  const im = m.internalModel;
+  console.log('=== Cubism Native API on internalModel ===');
+  // 列出所有可能相关的 native 方法
+  const proto = Object.getPrototypeOf(im);
+  const all = Object.getOwnPropertyNames(proto);
+  all.forEach(name => console.log('  im.' + name));
+  // 也试下 _ptr
+  console.log('im._ptr:', im._ptr);
+  if (im._ptr) {
+    console.log('_ptr methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(im._ptr)));
+  }
+  // 试 model 上的直接方法
+  console.log('=== Test model.setParameterValue ===');
+  console.log('Before:', m.getParameterValue('ParamEyeLOpen'));
+  m.setParameterValue('ParamEyeLOpen', 0.3);
+  console.log('After:', m.getParameterValue('ParamEyeLOpen'));
+};
 window._model = model;
 
 // ── 表情参数定义 ──
@@ -134,10 +183,10 @@ PARAM_DEFS.forEach(p => values[p.id] = p.default);
 
 // ── 应用到模型 ──
 function applyParams() {
-  const im = model.internalModel;
-  if (!im) return;
+  const m = window._model;
+  if (!m) return;
   for (const [id, v] of Object.entries(values)) {
-    try { im.parameterSetValue(id, v); } catch(e) {}
+    try { m.setParameterValue(id, v); } catch(e) {}
   }
 }
 
