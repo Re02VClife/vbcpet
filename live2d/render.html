@@ -42,27 +42,30 @@ window._currentEmotion='neutral';
 window.applyEmotion=function(name,duration){
   duration=duration||400;
   var model=window._model;
-  if(!model||!model.internalModel)return false;
-  var im=model.internalModel;
+  if(!model)return false;
   var target=EMOTION_PRESETS[name];
   if(!target){console.warn('Unknown emotion:',name);return false}
   window._currentEmotion=name;
-  var start={}; var keys=Object.keys(target);
-  for(var i=0;i<keys.length;i++){try{start[keys[i]]=im.parameterGetValue(keys[i])}catch(e){start[keys[i]]=0}}
+  var keys=Object.keys(target);
+  // 读取当前值作为起点
+  var start={};
+  for(var i=0;i<keys.length;i++){
+    try{start[keys[i]]=model.getParameterValue(keys[i])}catch(e){start[keys[i]]=0}
+  }
   var t0=performance.now();
   if(window._emotionTimer)clearInterval(window._emotionTimer);
   window._emotionTimer=setInterval(function(){
     var elapsed=performance.now()-t0;
     var t=Math.min(elapsed/duration,1);
-    var ease=t<0.5?2*t*t:-1+(4-2*t)*t; // easeInOutQuad
+    var ease=t<0.5?2*t*t:-1+(4-2*t)*t;
     for(var i=0;i<keys.length;i++){
       var k=keys[i];
       var v=start[k]+(target[k]-start[k])*ease;
-      try{im.parameterSetValue(k,v)}catch(e){}
+      try{model.setParameterValue(k,v)}catch(e){}
     }
     if(t>=1){clearInterval(window._emotionTimer);window._emotionTimer=null}
   },16);
-  console.log('emotion:',name,'->',Object.keys(target).length,'params,',duration,'ms');
+  console.log('emotion:',name,'->',keys.length,'params,',duration,'ms');
   return true;
 };
 window.getStatus=function(){
