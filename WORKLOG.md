@@ -160,3 +160,309 @@
 - ✅ 固件稳定（单缓冲 + 行超时 + 滚动显示，13.8fps 推流）
 - ✅ 调参工具可用（`live2d/tune_expressions.html`）
 - ⬜ 需 P4 硬件连接验证：serial_bridge.py 端到端 + 心情表情联动
+
+## 2026-07-28 (周一)
+
+### 心情 → 表情持续影响系统 (动作队列 v3)
+
+**背景**：旧方案 `applyEmotion()` 停止 idle → 过渡表情 → 5 秒后恢复 idle → **表情被动画覆盖消失**。需要心情持续影响角色面部。
+
+**尝试过的方案**：
+
+1. **motionManager.update() hook** — 每帧动画后混合心情参数
+   - 复用 `motionManager.update` 在动画更新后叠加表情参数
+   - 问题：PIXI v8.19 + `@jannchie/pixi-live2d-display` 1.3.0 + Cubism Core 5.1.0 存在底层 WebGL 缓冲冲突
+   - `bindBuffer: element array buffers can not be bound to a different target` × 1635 错误
+   - 根因：Cubism SDK 的 `doUpdateMotion` → `updateParameters` 与 PIXI v8 的 WebGL 状态管理冲突
+   - `tune_expressions.html` 正常是因为禁用了所有动画；有动画持续跑就触发
+
+2. **脉冲动画方案** — 80% 时间静态表情 + 20% 动画脉冲
+   - 禁用持续 idle，用 `setTimeout` 周期性短暂播放 2.5s 动画
+   - 问题：需要禁用原生眼眨+自然运动（否则仍触发 WebGL 错误），需手动眨眼
+   - 用户要求保留原生系统
+
+3. **动作队列方案 (最终)**：
+   - 保留原生眼眨 + 自然运动（WebGL 错误可接受，仅在动画播放期出现）
+   - 拦截 `startRandomMotion`，手动控制队列节奏
+   - 循环：播放 idle → 轮询 `isFinished()` → idle 结束 → 应用心情表情 2.5s → 下一 idle
+   - 表情参数直接 `setParameterValue` 控制（无 motion 覆盖）
+   - 平滑过渡 `_transitionMoodParams`：easeInOutQuad, 300-620ms
+
+**render.html 最终架构**：
+```
+startRandomMotion 拦截 → _motionQueueLoop()
+  ┌──────────┐     ┌──────────────┐     ┌──────────┐
+  │ Idle ~4.7s│ → │ 表情 2.5s    │ → │ Idle ~4.7s│ → ...
+  │ (原生眨眼) │    │ (mood 表达式) │    │ (原生眨眼) │
+  └──────────┘     └──────────────┘     └──────────┘
+```
+
+**serial_bridge.py 调整**：
+- 移除 `_apply_l2d_status` 中冗余的 `_l2d_motion("Idle")` 调用
+- 心情引擎、Claude 状态偏移、mood± 指令保持不变
+
+### 抗锯齿尝试
+
+用户反馈 Live2D 锯齿严重：
+- MSAA (`antialias: true`) → 无效
+- SSAA (`resolution: 2`, 480×640 内部渲染) → 无效
+- 根因：模型在 240×320 画布上 `scale: 0.16` 仅渲染 ~76×107 像素，细节不足 2 像素宽
+- 结论：抗锯齿技术无法解决超小渲染的锯齿，需调大模型或重构图，暂搁置
+
+### 硬件 BOM 全部定稿
+
+BOM 原本 5 个 ⚠️ 待确认项全部解决：
+
+| 项目 | 决定 |
+|------|------|
+| 显示屏 | **YDP430BT009-V1** (鱼鹰光电), 4.3" IPS, 480×800, ST7102 MIPI-DSI 2-lane + 触摸 |
+| PA 功放 | **NS4150**, GPIO 控制, 3W D 类 |
+| 在位检测 | **PN532 NFC** (I²C), 手机放底座自动识别 + 触发配对 |
+| PD 供电 | **CH224K** 请求 9V/2A, 5V 回退; 板载 3.3V Buck + 1.8V LDO |
+| 主控 | **ESP32-P4C6-Core** (鱼鹰光电), 88pin 邮票孔, P4+C6 一体模组 |
+
+### 硬件文档产出
+
+- **[hardware/final-pinmap.md](hardware/final-pinmap.md)** — 最终板完整引脚分配
+  - 基于 P4C6-Core 88pin 逐个信号落实到 GPIO
+  - DSI / I²C / I²S / 触摸 / 按键 / NFC / LED / USB / 调试串口
+  - 供电架构：USB-C 9V PD → 3.3V Buck + 1.8V LDO + 背光升压
+  - I²C 地址表：ES8311=0x18, ES7210=0x40, PN532=0x24
+- **[hardware/devboard-pinmap.md](hardware/devboard-pinmap.md)** — 当前开发板 WT9932P4-TINY 实际引脚占用与兼容性分析
+- 解析了 2 份 PDF 数据手册：YDP430BT009-V1 (屏幕) + ESP32-P4C6-Core (模组)
+
+### 关键发现
+
+- **GPIO14-19 在 P4C6-Core 上未引出**（内部 PSRAM/Flash 占用）
+  - 当前固件的 IO16(BCLK)、IO18(SCL)、IO15(DOUT) **不可用**
+  - 最终板改为：SCL→IO21, BCLK→IO22, DOUT→IO23
+- **ST7102 驱动有 ESP-IDF 官方组件** (`espressif/esp_lcd_st7102`)，兼容性好
+- **触摸 I²C 为 1.8V**，需 TXS0102 电平转换，直接接 3.3V 会烧 IC
+- **ESP32-P4C6-Core 模组和 YDP430BT009-V1 屏幕同厂**（均为鱼鹰光电），供应协同有优势
+
+### 当前状态
+
+- ✅ 心情持续影响表情（动作队列 v3，原生眼眨+自然运动保留）
+- ✅ BOM 全部定稿，5/5 ⚠️ 已解决
+- ✅ 最终板完整引脚分配
+- ✅ 调参工具可用（`live2d/tune_expressions.html`）
+- ⬜ 固件引脚适配（IO15/16/18 → IO21/22/23）
+- ⬜ 开始绘制原理图 (KiCad)
+- ⬜ P4 硬件端到端验证
+
+## 2026-07-29 (周二)
+
+### 原理图设计文档
+
+- 编写 [schematic-design.md](hardware/schematic/schematic-design.md) — 5 页完整设计，逐元件逐脚连接表
+- 生成 [bom-lcsc.csv](hardware/schematic/bom-lcsc.csv) — 立创商城 BOM 含 C 编号，可直接导入嘉立创 EDA
+- 更新 [schematic/README.md](hardware/schematic/README.md) — 嘉立创 EDA 专业版绘制指南
+
+### 设计修正（用户审查 + 自主发现）
+
+**供电架构修正**：
+
+| # | 问题 | 原来(错) | 修正 |
+|---|------|----------|------|
+| 1 | P4C6 封装 | 2×44 双排 | **22×4 四面引脚** (邮票孔核心板) |
+| 2 | 背光电压 | 26V (推算) | **12.2V/40mA** (从 PDF 第 8 页提取) |
+| 3 | NS4150 供电 | VBUS 9V (超规格) | **+3V3** (最高 5.5V) |
+| 4 | CH224K CFG | GND (实际=15V) | **+3V3** (请求 9V) |
+| 5 | Buck 芯片 | SY8088 (最高 5.5V) | **MP2315** (4.5-24V 宽压) |
+| 6 | MP3302 供电 | VBUS 9V (超规格) | **+3V3** (最高 6V) |
+
+**CH224K 讨论**：WT9932P4-TINY 开发板用最简单 USB 5V→3.3V 稳压，没用任何 PD 芯片。总功耗 ~5W，USB-C 5V/3A=15W 绰绰有余。CH224K 暂时保留但可去掉。
+
+**USB 通信**：确认 P4 内置 USB Serial JTAG + DFU，单根 USB-C 线搞定供电+串口+烧录+JTAG 调试，与开发板一致。无需 CP2102/CH340/FT232 等桥接芯片。
+
+### 音频架构重设计
+
+用户指出小智项目用 MAX98357A + INMP441 全数字方案 VS 我设计的 ES7210+ES8311+NS4150。
+
+**旧方案 (废弃)**：
+```
+ES7210(ADC) + 模拟 MEMS → I2S TDM → P4
+P4 → I2S → ES8311(DAC) → NS4150(PA) → 喇叭
+```
+- 3 颗 IC + 2 颗 I2C 地址 + 模拟走线 + AGND 分区 + 磁珠
+
+**新方案 (全数字 I2S)**：
+```
+P4 I2S0 ↔ MAX98357A (I2S DAC+3W PA) + ZTS6672×2 (I2S 数字麦)
+```
+- **MAX98357A** (CH98357 国产替代, ¥6)：I2S 直入, 内置 D 类 3W, 滤波免输出
+- **ZTS6672 ×2** (ICS-43434 平替, ¥3/颗)：I2S 数字 MEMS 麦, 灵敏度-26dB, SNR 65dB
+- 删 3 颗 IC (ES7210/ES8311/NS4150)
+- 删 6 颗阻容 (隔直/滤波)
+- 无模拟走线, 无 AGND 分区, 无磁珠
+- I2C 总线上只剩 NT3H1101 + 触摸 (原 4 设备)
+- BOM 净减少 8 行
+
+**ZTS6672 引脚 (从 EDA 库验证)**：7 脚, 无 MCLK — {LRC, SELECT, GND, BCLK, VDD, DATA, CONFIG}。文档中 8 脚带 SCK/MCLK 的描述**全部错误**（用户画图时发现）。
+
+**不需要 MCLK**：ZTS6672 和 MAX98357A 都支持从 BCLK 内部生成时钟。GPIO5 释放。
+
+### BOM 优化
+
+| 改动 | 旧 | 新 | 理由 |
+|------|----|----|------|
+| NFC | PN532 (¥15+) | **NT3H1101** (¥2, I2C 0x55) | 只需手机触碰开 APP，数据走 C6 WiFi |
+| 保险丝 | PTC 1206 2A | **0Ω 跳线 + TVS** | 开发板同方案，简单可靠 |
+| 音频 | ES7210+ES8311+NS4150 | **MAX98357A+ZTS6672×2** | 全数字 I2S，少 3 颗 IC |
+
+### 用户开始绘制原理图
+
+- 在嘉立创 EDA 专业版中建 P4C6-Core 模组符号 (M1), 已接好大部分引脚
+- 放置了 CH224K, MP2315, CH98357, ZTS6672, FPC30, 按键等
+- **发现 ZTS6672 引脚与文档不符** (7 脚 vs 8 脚, 无 MCLK)
+- **CH98357 接线需修正**：DIN→I2S_DOUT (非 IO7), LRCLK→I2S_WS (非 IO16), BCLK→I2S_BCLK (非 IO15)
+
+### 当前状态
+
+- ✅ 心情持续影响表情（动作队列 v3）
+- ✅ BOM 全部定稿 + 多轮修正
+- ✅ 最终板完整引脚分配
+- ✅ 原理图设计文档 (5 页)
+- ✅ BOM CSV (31 行)
+- ✅ 音频架构重设计 (全数字 I2S)
+- ✅ 模块化设计方案
+- 🔧 原理图绘制中 (嘉立创 EDA)
+- ⬜ 固件引脚适配
+
+## 2026-07-30 (周三)
+
+### 原理图绘制 + 设计迭代
+
+用户在嘉立创 EDA 中画原理图，过程中发现多处理论与实物不符，逐项修正。
+
+### 关键修正
+
+**1. ZTS6672 引脚错误**
+- 文档写成 8 脚带 SCK/MCLK，实际 ZTS6672 是 **7 脚，无 MCLK**（用户从 EDA 库中确认）
+- ZTS6672 和 MAX98357A 都能从 BCLK 内部生成时钟，GPIO5(MCLK) 释放
+
+**2. 触摸 IO 是 3.3V，不是 1.8V**
+- PDF 解析偏差导致误判。用户按官方文档建 FPC 符号，TP_VDD 标 3.3V
+- 删掉整个 1.8V 供电路径：ME6211C18、TXS0102、TXS0101 ×2、C7/C8
+- 触摸 4 个引脚直接 3.3V 连 P4 GPIO
+
+**3. 1.8V 不存在 → 全部文档重写**
+- 6 个文档更新：bom.md、final-pinmap.md、power-tree.md、schematic-design.md、bom-lcsc.csv、README.md
+- final-pinmap.md 完全重写，schematic-design.md 完全重写
+
+**4. 音频架构迭代**
+- 原设计 ES7210+ES8311+NS4150 → 改为 MAX98357A+ZTS6672×2 全数字 I2S
+- 最终：MAX98357A 外购模块 + ZTS6672 外购模块 ×2
+- 无 MCLK 需求，I2S 总线只需 BCLK/WS/DOUT/DIN
+
+**5. 其他选型修正**
+- PN532 → NT3H1101 → **NT3H2111** (NXP 升级版, 更便宜, pin2pin)
+- 自恢复保险丝 → **0Ω 1206 + TVS**
+- CH224K PD → **去掉** (USB-C 5V/15W 远超总功耗 4.2W)
+- 轻触开关 → **Cherry MX 轴体** ×4
+- WS2812B 3535 ×1 → **5050 ×4** 键下级联 RGB
+- 背光 MP3302 → **MT3608** (更常见好买)
+- Buck SY8088 → **MP2315** (宽压 4.5-24V)
+
+### 模块化方案
+
+整理出 [modular-design.md](hardware/modular-design.md)：
+
+```
+主板元件(板上):
+  P4C6-Core + MP2315 + MT3608 + FPC30 + NT3H2111
+  + Cherry MX×4 + WS2812B 5050×4 + RST
+  + 上拉电阻 + 去耦电容
+
+外购模块:
+  MAX98357A I2S 功放模块 + ZTS6672 I2S 麦模块 ×2 + IPEX1 天线
+```
+
+主板 BOM 31 行（含外购 4 行），对比全分立 30 行但主板焊点从 ~50 降到 ~35。
+
+### 文档产出
+
+- [modular-design.md](hardware/modular-design.md) — 模块化设计完整方案
+- 重写 [schematic-design.md](hardware/schematic/schematic-design.md)
+- 重写 [final-pinmap.md](hardware/final-pinmap.md)
+- 重写 [power-tree.md](hardware/power-tree.md)
+- 更新 [bom.md](hardware/bom.md)、[bom-lcsc.csv](hardware/schematic/bom-lcsc.csv)、[block-diagram.md](hardware/block-diagram.md)
+- 用户画出 39 个元件，通过网表交叉验证接线
+
+### 当前状态
+
+- ✅ 全部硬件文档同步
+- ✅ 模块化方案定稿
+- ✅ 引脚分配最终确认
+- 🔧 原理图绘制中 (39/全量元件已放, 缺 MP2315/MT3608 等电源部分)
+
+---
+
+## 2026-07-31 (周四)
+
+### 按键+RGB 方案变更: Cherry MX → 凯华轴座 + SK6812 3215 反贴灯
+
+用户提出将按键和 RGB 方案从"Cherry MX 轴体直接焊板 + WS2812B 5050"改为可拔插的凯华热插拔轴座 + 3215 反贴灯方案。
+
+**凯华轴座 6-pin 定义:**
+| Pin | 信号 | 说明 |
+|-----|------|------|
+| 1 | VDD | LED 供电 (5V VBUS) |
+| 2 | DOUT | LED 数据出 (→下一灯 DIN) |
+| 3 | GND | LED 地 |
+| 4 | DIN | LED 数据入 (←前灯 DOUT / GPIO51) |
+| 5 | K0 | 开关端子 0 (→GPIO+上拉) |
+| 6 | K1 | 开关端子 1 (→GND) |
+
+**SK6812 3215 供电分析:**
+- VDD_min=3.5V, 3.3V 供电蓝色通道不亮
+- **改为 VBUS (5V) 直供**, 与 MAX98357A 共享 5V 轨
+- 3.3V GPIO 直驱 5V SK6812: 实测可行 (输入阈值 ~2.5V), 保守可串 1N4148 降 VDD 至 ~4.3V
+- **限流电阻: 不需要** (SK6812 内置恒流驱动, RGB 每通道独立恒流)
+- 仅需: 数据线 33Ω 匹配电阻 + 每灯 100nF 旁路 + 总线 100µF
+
+**接线方案:**
+```
+LED 级联: GPIO51─[33Ω]→LED1_DIN, LED1_DOUT→LED2_DIN, LED2_DOUT→LED3_DIN, LED3_DOUT→LED4_DIN(DOUT=NC)
+按键: SW1-4 K0→GPIO1-4(+10kΩ 上拉), K1→GND
+供电: 4灯 VDD 全部接 VBUS(5V) + 100µF 总去耦
+```
+
+### PCB 布局布线指南
+
+用户询问 PCB 布线注意事项。编写了完整的 [pcb-layout-guide.md](hardware/pcb-layout-guide.md)，涵盖:
+- **MIPI-DSI 差分对**: 100Ω 差分阻抗, 对内等长 ≤0.25mm, 同层不换层, 包地
+- **C6 RF 天线**: 50Ω 单端, <15mm, 0 过孔, 圆弧拐角
+- **USB DP/DM**: 90Ω 差分, FS 不严格
+- **I2S**: ≤20mm 等长, 远离 DC-DC SW 节点
+- **MP2315/MT3608 电源**: SW 节点最小化, FB 远离 SW, 输入电容紧贴 IC
+- **NFC PCB 天线**: 3~4 匝 25×25mm, 下方禁铺地
+- **4 层板推荐**: Top(Sig) / L2(GND) / L3(Pwr+Sig) / Bot(Sig)
+- 嘉立创 EDA 操作要点
+
+否决了用户调整 MIPI-DSI 引脚映射的想法 (时钟/数据物理通路不可互换)。
+
+### D:\vscode 权限修复
+
+整个 `D:\vscode` 目录 Users 组只有 RX 权限无 Write 权限，导致 Write 工具持续 EPERM。
+执行 `icacls D:\vscode /grant Users:F /T` 修复。
+
+### 文档全面更新
+
+更新文件清单:
+- [bom.md](hardware/bom.md): NT3H1101→NT3H2111, 轻触开关→凯华轴座, WS2812B→SK6812 3215, MP3302→MT3608
+- [bom-lcsc.csv](hardware/schematic/bom-lcsc.csv): 新增 凯华轴座/SK6812/100nF×4/100µF/33Ω 行, BOM 30→35 行
+- [schematic-design.md](hardware/schematic/schematic-design.md): Sheet 05 全重写, 全局 NT3H1101→NT3H2111, MP3302→MT3608, WS2812B→SK6812
+- [schematic/README.md](hardware/schematic/README.md): 全量更新, 新增 SK6812/轴座/布线约束/pcb-layout-guide 引用
+- [final-pinmap.md](hardware/final-pinmap.md): 按键/状态灯章节全重写, 供电架构更新
+- [modular-design.md](hardware/modular-design.md): 按键/LED 模块描述重写, 系统框图更新, BOM 30→35
+- [power-tree.md](hardware/power-tree.md): 全量重写 v1.1, SK6812 从 +3V3 移到 VBUS, MT3608 替 MP3302
+- [block-diagram.md](hardware/block-diagram.md): Cherry MX→凯华轴座, WS2812B→SK6812
+- **[pcb-layout-guide.md](hardware/pcb-layout-guide.md)** (新建): PCB 布局布线完整指南
+
+### 当前状态
+
+- ✅ 按键+RGB 方案改为凯华轴座 + SK6812 3215 反贴灯
+- ✅ PCB 布局布线指南就绪
+- ✅ 全部硬件文档已同步最新方案
+- 🔧 原理图绘制中 (EDA 中需更新 Sheet 05 为新的轴座+反贴灯方案)

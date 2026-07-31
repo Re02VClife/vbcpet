@@ -118,7 +118,7 @@ class UnifiedBridge:
         }
         delta = mood_deltas.get(state, 0)
         await self._adjust_mood(delta)
-        await self._l2d_motion("Idle")
+        # idle 动画由 render.html 持续运行 (mood hook 混合表情)
 
 
     # ── AgentDriver 回调 ──

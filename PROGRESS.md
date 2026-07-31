@@ -1,237 +1,275 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-07-21 | 当前阶段: Phase 0 Bring-up — ✅ 端到端推流 14fps 达成，P4 性能充裕
+> 更新: 2026-07-28 | 当前阶段: Phase 0 收尾 → Phase 1 硬件设计启动
 
 ---
 
 ## 一、项目概述
 
-vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 网络推流 → ESP32-P4 终端解码显示 + 按键/触摸交互**。
+vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → USB 串口推流 → ESP32-P4 终端解码显示 + 按键/NFC/触摸交互**。
 
 ```
-┌─ PC Host ──────────────────────────────────────────────────────┐
-│  Claude Code (AI) → 导演/压缩 → Live2D 渲染 → WebRTC/H.264 推流  │
-│  host.py / serial_stream.py / live2d_track.py                  │
-└──────────────────────┬─────────────────────────────────────────┘
-                       │ WiFi (计划) / USB 串口 (当前)
-┌──────────────────────┴─────────────────────────────────────────┐
-│  ESP32-P4 WT9932P4-TINY 终端                                    │
-│  ST7789V SPI 显示 | 协议解析 | JPEG 硬解 | 按键输入 (计划)       │
-└────────────────────────────────────────────────────────────────┘
+┌─ PC Host ───────────────────────────────────────────────────────┐
+│  Claude Code (AI) → serial_bridge.py v0.2                       │
+│  Playwright 无头浏览器 → Live2D 渲染 → JPEG 截图 → 串口推流      │
+│  心情引擎: Claude状态→mood偏移→表情映射                          │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ USB 串口 (2M baud, 13.8fps)
+┌──────────────────────┴──────────────────────────────────────────┐
+│  ESP32-P4 WT9932P4-TINY (当前) / ESP32-P4C6-Core (最终)         │
+│  ST7789V SPI 240×320 | 协议解析 | JPEG PPA硬解 | 文字叠加       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 二、当前进度
 
-### ✅ 已完成
-
-| 模块 | 详情 |
-|------|------|
-| **固件环境** | ESP-IDF v5.5.3 + ESP32-P4 rev1.3, 编译/烧录/串口监控环境就绪 |
-| **NVS** | Flash 存储初始化正常 |
-| **协议栈** | DataChannel 协议 **24/24 测试通过** — 构建(hello/heartbeat/button/dock/user_text)、解析(panel/say/type/work_status/prompt_confirm)、v1 CharacterEvent 编解码、v0/v1 兼容层 |
-| **SPI 显示** | ST7789V 240×320 竖屏，SPI Mode 0 / **40MHz**，MADCTL=0x00 |
-| **JPEG 硬解** | PPA 硬件解码 + 双缓冲，解码 ~1ms/帧，理论可到 1000fps |
-| **PC Live2D 渲染** | PixiJS + Cubism 4 + Playwright (Edge + SwiftShader)，240×320 画布 |
-| **USB 串口推流** | PC → P4 JPEG 帧传输，协议 `FRAME:<hex_size>\n` + JPEG，2M baud |
-| **Live2D → 屏幕** | 端到端全链路通：PC渲染→JPEG→串口→P4解码→显示，**14.2fps @ quality 80** |
-| **启动画面** | 默认十字准星 JPEG 内嵌固件，开机即显示 |
-| **P4 性能** | decode=1ms, SPI draw=0ms (DMA异步), 瓶颈在PC端串口传输(~488KB/s有效) |
-| **FPS 计数器** | 屏幕左上角实时帧率显示 |
-| **P4 bootloader** | ESP32-P4 专有 flash 偏移 0x2000 已确认并文档化 |
-| **问题排查报告** | `debug-report.md` — 5 个根因完整记录 |
-
-### 🔧 待优化
+### ✅ 固件 (Firmware)
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| **ST7789V 颜色校正** | 已知硬件偏色 | 绿→红、红→黄、蓝→紫，所有软件配置无效，需软件色表映射 |
+| 模块化重构 | ✅ | 单片拆分为 7 模块: transport/channel_demux/display_pipeline/interaction_engine/text_render/text_input |
+| SPI 显示 | ✅ | ST7789V, SPI Mode 0, 10MHz, 240×320 |
+| JPEG 硬解 | ✅ | PPA 硬件解码, 单缓冲架构 (消除 DMA 竞态) |
+| 串口推流 | ✅ | 13.8fps @ 2M baud, 12-14KB/帧 |
+| 中文渲染 | ✅ | 7548 个 CJK 字形 (SimSun 16×16), UTF-8 解码, 透明背景 |
+| 滚动显示 | ✅ | 自动滚动 + 新消息重置 |
+| 行超时保护 | ✅ | 500ms 行超时自动重置 (防半行数据堆积) |
+| 显示后端抽象 | ✅ | display_backend.h + SPI/DSI 双后端, Kconfig 编译时选择 |
+
+### ✅ Live2D 角色系统
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| Hiyori 模型 | ✅ | Cubism 4, PixiJS 8 + @jannchie/pixi-live2d-display |
+| Motion 动作 | ✅ | 10 个真实 motion 文件 (8-19KB, 31 参数曲线, 4.7s/30fps) |
+| 表情预设 | ✅ | 5 个情绪 (neutral/happy/sad/surprised/angry), 13 个面部参数 |
+| 调参工具 | ✅ | `live2d/tune_expressions.html` — 可视化滑块实时调参 |
+| 心情系统 | ✅ | Mood 0-100 (基线 60), 右上角显示, Claude 状态→mood 偏移 |
+| **动作队列 v3** | ✅ | idle~4.7s → 表情 2.5s → 循环, 原生眼眨+自然运动保留 |
+
+### ✅ PC Host (serial_bridge.py v0.2)
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| Live2D 推流 | ✅ | Playwright 截图 → JPEG → 串口 |
+| Claude 交互 | ✅ | 输入文字 → Claude → 回复显示到 P4 屏幕 |
+| 按键模拟 | ✅ | [1][2][3][4] → yes/no/yes-always/panel |
+| 心情引擎 | ✅ | Claude 状态偏移 + 用户行为偏移 + 闲置回归 + mood± 指令 |
+| CTRL 队列化 | ✅ | asyncio.Queue 串行发送, 避免并发写冲突 |
+
+### ✅ 硬件设计 (Hardware)
+
+| 文档 | 状态 | 说明 |
+|------|------|------|
+| BOM | ✅ **全部定稿** | 5/5 ⚠️ 已解决 |
+| 最终板引脚分配 | ✅ | [final-pinmap.md](hardware/final-pinmap.md) — P4C6-Core 88pin 完整分配 |
+| 开发板引脚记录 | ✅ | [devboard-pinmap.md](hardware/devboard-pinmap.md) — WT9932P4-TINY 实际占用 |
+| 原理图 | ⬜ | 待开始 (KiCad) |
+| PCB | ⬜ | 待原理图完成后 |
+
+### 🔧 待优化
+
+| 项目 | 说明 |
+|------|------|
+| ST7789V 颜色校正 | 面板硬件色偏, 需软件色表映射 |
+| Live2D 锯齿 | 模型渲染 ~76×107 像素过小, MSAA/SSAA 无效, 需调大 scale 或重构图 |
+| FPS 提升 | 试 3M baud (目标 >18fps) |
 
 ### ⏸️ 暂缓 (WT9932P4-TINY 无对应硬件)
 
 | 模块 | 原因 |
 |------|------|
-| WiFi (C6) | WT9932P4-TINY 无 C6 模组，需外挂模组或换开发板 |
-| 音频 (ES7210/ES8311) | 板子无音频 codec，需外接 |
-| 按键输入 | 未连接物理按键，需焊接 |
-| WebRTC/H.264 | 依赖 WiFi + 开发板音频，当前 USB 串口 + JPEG 已验证链路可行 |
-
-### 📋 下一步 — 按优先级排序
-
-1. **代码整理 + Git 提交** — 清理临时文件，提交已验证的固件和推流代码
-2. **硬件升级方案评估** — WT9932P4-TINY 功能受限，决定是外挂模块还是换开发板
-3. **ST7789V 颜色校正** — 软件 RGB565 色表映射
-4. **帧率进一步提升** — 提高串口波特率到 3M/4M，或评估 WiFi 替代方案
+| WiFi (C6) | 开发板无 C6, 最终板 P4C6-Core 内置 |
+| 音频 (ES7210/ES8311) | 开发板无 codec |
+| 按键 | 未焊接 |
+| MIPI-DSI 显示 | 开发板只有 SPI, 最终板用 YDP430BT009-V1 |
 
 ---
 
-## 三、遇到的关键问题与解决
+## 三、BOM 选型决策
 
-### 1. USB Serial JTAG 接收数据 (耗时最长 ⚠️)
+| # | 项目 | 决策 | 日期 |
+|---|------|------|------|
+| 1 | 屏幕 | **YDP430BT009-V1** (鱼鹰光电), 4.3" IPS 480×800, ST7102 MIPI-DSI + 触摸 | 7/28 |
+| 2 | PA 功放 | **NS4150**, GPIO 控制, 3W D 类 | 7/28 |
+| 3 | 在位检测 | **PN532 NFC** (I²C), 手机放底座自动识别 | 7/28 |
+| 4 | PD 供电 | **CH224K** 请求 9V, 5V 回退; 板载 3.3V Buck + 1.8V LDO | 7/28 |
+| 5 | 主控 | **ESP32-P4C6-Core** (鱼鹰光电), P4+C6 一体模组, 88pin | 7/28 |
 
-**现象**: PC 通过 COM16 发送数据，P4 端始终收不到，`ser.write()` 超时
+### I²C 地址分配
 
-**排查过程**:
-1. ❌ `usb_serial_jtag_read_bytes` 无驱动 → 崩溃 (Load access fault)
-2. ❌ 安装驱动后 → 不崩溃但收不到数据
-3. ❌ 改用 `fgetc(stdin)` + O_NONBLOCK → 非阻塞模式在 USB CDC 上不生效
-4. ❌ 改用 `usb_serial_jtag_ll_read_rxfifo` 直读硬件 FIFO → ISR 已将数据搬到驱动 ring buffer，FIFO 为空
-5. ✅ **根因**: Console 配置为 USB Serial JTAG 时，ESP_LOGI 与数据流共享同一 USB 通道，日志填满 IN 缓冲区导致反压。**解决**: console 切回 UART0 (`CONFIG_ESP_CONSOLE_UART_DEFAULT=y`)，USB Serial JTAG 专用于数据
-
-**教训**: ESP32-P4 的 USB Serial JTAG 是独立硬件，与 UART0 console 分离。数据传输场景必须将 console 配置在 UART0，不可共用 USB 通道。
-
-### 2. JPEG 硬件解码失败
-
-**现象**: `jpeg_decoder_process` 报错 "output buffer size is not aligned"
-
-**解决**: `malloc` 分配的缓冲区不满足 PPA JPEG 硬件对齐要求，必须用 `jpeg_alloc_decoder_mem` 分配（内部使用 DMA 对齐 + cache line alignment）。后续又遇到 150KB 大缓冲动态分配失败，改为启动时预分配+复用。
-
-### 3. ST7789V 寄存器写入不生效
-
-**现象**: MADCTL/COLMOD/INVON 写操作返回 ESP_OK 但显示无变化
-
-**根因**: ST7789V 寄存器写入必须在 display OFF 状态下进行。`esp_lcd_panel_disp_on_off(false)` → 写寄存器 → `esp_lcd_panel_disp_on_off(true)`
-
-### 4. ST7789V 颜色系统偏差
-
-**现象**: 绿背景显示为红，红显示为黄，蓝显示为紫
-
-**尝试过**: 调整 RGB/BGR 顺序、INVON 反转、COLMOD 像素格式、SPI Mode 切换 — 均无效。色偏为系统性的，所有颜色按固定方式偏移。暂定为面板硬件特性，需软件色表映射修正。
-
-### 5. Live2D 模型不在截图内
-
-**现象**: render.html 画布 480×800 但截图 viewport 320×240，模型在 y=400 被截掉
-
-**解决**: 画布改为 320×240 匹配显示屏，模型缩放和位置相应调整
-
-### 6. ESP32-P4 bootloader flash 偏移量 (2026-07-20 发现 🔑)
-
-**现象**: 重新烧录后 P4 无限循环 `invalid header: 0x5073bcb7` + WDT 重启，esptool 读回 flash 数据正确但 ROM bootloader 找不到有效固件
-
-**根因**: **ESP32-P4 与其他 ESP32 不同 — ROM bootloader 在 flash 偏移 `0x2000` 处查找第二级 bootloader**，而非标准 ESP32 的 `0x0`。手动 esptool 命令用错偏移量（`0x0`），而 `idf.py flash` 自动读取 `flasher_args.json` 使用正确偏移。
-
-**证据**: `firmware/build/flasher_args.json` 明确记录 `"0x2000": "bootloader/bootloader.bin"`
-
-**正确烧录命令**:
-```bash
-esptool write_flash 0x2000 bootloader/bootloader.bin 0x8000 partition_table/partition-table.bin 0x10000 vbcpet.bin
-# 或直接用: idf.py flash  (自动使用正确偏移量)
-```
-
----
-
-## 四、技术摘要
-
-### 关键配置
-
-```
-ESP32-P4 rev1.3 | SPI: Mode 0, 40MHz | Display: 240×320 RGB565 (竖屏 MADCTL=0x00)
-Console: UART0 | Data: USB Serial JTAG (COM16, 2M baud)
-Flash: bootloader@0x2000 (⚠️ ESP32-P4 专有!) | partition@0x8000 | app@0x10000
-Protocol: FRAME:<hex_size>\n + JPEG | Quality: 80 | Live2D: ~14KB/frame, 14.2fps
-P4 timing: decode=1ms, SPI=0ms (DMA), bottleeck=PC串口传输 (488KB/s @ 2M baud)
-双缓冲: JPEG_alloc_decoder_mem × 2, 交替解码/DMA刷屏
-推流脚本: stream_simple.py (无 drain 线程, Playwright 直接 JPEG 截图)
-```
-
-### 内存使用
-
-```
-Total: ~545 KiB (143+18+384 RETENTION+RAM)
-JPEG 解码输出: 153,600 bytes (~28%)
-固件大小: 334,592 bytes (flash, 70% free)
-```
-
----
-
-## 五、下一步规划
-
-### 立即可做
-
-1. **代码整理 + Git 提交** — 清理临时脚本文件，提交已验证的固件+推流代码。当前未跟踪文件：
-   - `debug-report.md` (排查报告) → 应该提交
-   - `firmware/main/default_screen.h` (嵌入式启动画面) → 应该提交
-   - `pc-host/stream_simple.py` (主力推流脚本) → 应该提交
-   - `pc-host/crosshair_240x320.jpg`, `grid_test.jpg`, `quad_test.jpg`, `red_test.jpg` → 清理或移入 test-assets/
-   - `_tmp_build.*` → 删除
-
-2. **ST7789V 颜色校正** — 软件 RGB565 色表映射
-
-### 关于硬件方案的讨论
-
-当前 WT9932P4-TINY 开发板是 P4 最小系统板，**缺少 Phase 0 验证清单中的关键外设**：
-- 无 ESP32-C6 (WiFi6)
-- 无音频 codec
-- 无物理按键
-- 无 DSI 接口 (只有 SPI 小屏)
-
-有两条路可以走：
-
-| 路线 | 做法 | 优势 | 劣势 |
-|------|------|------|------|
-| **A: 外挂模块** | 在 WT9932P4-TINY 上飞线接 C6 模组 + 音频模块 + 按键 | 利用现有板子，成本低 | 飞线多、稳定性差、SPI 屏带宽有限 |
-| **B: 换开发板** | 上 ESP32-P4-Function-EV-Board (官方全功能板) | 原生 DSI 大屏、C6、音频、按键都有 | 成本高(~¥500+)、板子大 |
-
-**建议先走路线 A 验证关键链路（C6 WiFi + 数据吞吐），再决定是否投入 Phase 1 画板。**
-
-### 中期 (1-2周)
-
-3. **WiFi 联网验证** — 外挂 ESP32-C6 模组 (SDIO/SPI)，测 WiFi6 吞吐，对比 USB 串口方案
-4. **按键输入** — 焊接 4 按键 (yes/no/yes-always/panel)，打通工具授权闭环
-5. **Live2D 角色交互** — 动作/表情控制指令
-
-### 长期
-
-6. **音频链路** — ES7210 + ES8311 录放 + AEC + Opus
-7. **Phase 1 原理图** — KiCad 7 张 Sheet 设计
-8. **Phase 2 PCB** — 4 层板布局布线
-
-### 预计总时间线
-
-| 阶段 | 时间 | 状态 |
+| 设备 | 地址 | 总线 |
 |------|------|------|
-| Phase 0 Bring-up (SPI显示+JPEG+Live2D推流) | 1-2 周 | ✅ 基本完成 |
-| Phase 0 Bring-up (WiFi/音频/按键) | 2-3 周 | ⏳ 待硬件 |
-| Phase 1 原理图 | 2-3 周 | ❌ 未开始 |
-| Phase 2 PCB | 3-4 周 | ❌ 未开始 |
-| Phase 3-4 打样+Bring-up | 3-5 周 | ❌ 未开始 |
-| **预计总计** | **10-17 周** | |
+| ES8311 (DAC) | 0x18 | I²C0 |
+| ES7210 (ADC) | 0x40 | I²C0 |
+| PN532 (NFC) | 0x24 | I²C0 |
+| 触摸 (ST7102 内置) | (待确认) | I²C0 → TXS0102 → 1.8V |
+
+### 供电架构
+
+```
+USB-C → CH224K (PD 9V) → DC-DC Buck → 3.3V @ 2A → P4C6-Core + 外设
+                        → LDO → 1.8V (触摸 IO / codec IO)
+                        → Boost LED Driver → ~26V (屏背光)
+```
 
 ---
 
-## 六、文件结构
+## 四、关键问题与解决
+
+### 1. PIXI v8 + Cubism SDK WebGL 冲突 (7/28)
+
+**现象**: 模型加载成功但不显示, `bindBuffer: element array buffers can not be bound` × 1635
+
+**根因**: `@jannchie/pixi-live2d-display` 1.3.0 + PIXI 8.19 + Cubism Core 5.1.0 底层 WebGL 状态冲突。`doUpdateMotion` → `updateParameters` 阶段 buffer 绑定与 PIXI 渲染管线不一致。`tune_expressions.html` 正常是因为禁用了所有动画。
+
+**解决**: 动作队列架构 — 不持续跑 idle, 改用 idle→表情→idle 队列循环。保留原生眼眨+自然运动。
+
+### 2. 表情被 idle 动画覆盖 (7/27)
+
+**现象**: `applyEmotion()` 设完参数后, idle 动画每帧覆盖 → 表情仅持续 5 秒
+
+**解决**: 改为 `applyEmotion` 先 `stopAllMotions()` → 过渡参数 → 再恢复 idle。(后被动作队列 v3 替代)
+
+### 3. Live2D 参数 API 陷阱 (7/27)
+
+**现象**: `internalModel.parameterSetValue` / `setParameterValueById` 均不存在
+
+**解决**: 正确 API 在 top-level `model` 对象上: `model.setParameterValue(id, value)` / `model.getParameterValue(id)`
+
+### 4. ESP-IDF idf.py 不编译 (7/27)
+
+**现象**: Git Bash 中 idf.py 返回 0 但无编译输出
+
+**根因**: `idf.py` 检测 `MSYSTEM` 环境变量后仅打印警告, 跳过 `main()`。解决: `set "MSYSTEM="` 批处理绕过。
+
+### 5. 显示稳定性 (6 个连环问题, 7/23-24)
+
+| 问题 | 根因 | 修复 |
+|------|------|------|
+| 花屏 | g_buf_idx 初始值 bug | feed_jpeg 内部 flush |
+| 心跳阻塞 | USB Serial JTAG TX/RX 冲突 | 非阻塞 send + 加大 TX 缓冲 |
+| SPI DMA 溢出 | 每循环都 flush | 只在有新帧时 flush |
+| JPEG+文字花屏 | DMA 未完成时写同一内存 | 单缓冲: 解码→文字→一次 flush |
+| 文字仅显示一帧 | g_text_dirty 标志 | 去掉 dirty, 每帧叠加 |
+| 字符变黑色方块 | draw_ascii 画了背景像素 | 透明背景渲染 |
+| 长消息 JSON 截断 | 行缓冲 256B 限制 | 256→512→1024B + 500ms 行超时 |
+
+---
+
+## 五、Live2D 系统架构演进
+
+```
+v1 (7/27): applyEmotion → stopAllMotions → 过渡表情 → 5s后恢复idle
+          问题: 5秒后表情消失
+
+v2 (7/28 morning): motionManager.update hook → 每帧叠加表情
+          问题: WebGL buffer 冲突 ×1635
+
+v3 (7/28 final): 动作队列 — startRandomMotion 拦截 → 手动队列循环
+          idle ~4.7s → isFinished() → 表情 2.5s → 下一 idle → ...
+          保留原生眼眨+自然运动, 表情参数直接控制
+```
+
+---
+
+## 六、技术摘要
+
+### 当前开发板 (WT9932P4-TINY)
+
+```
+ESP32-P4 rev1.3 | SPI: Mode 0, 10MHz | Display: 240×320 ST7789V
+Console: UART0 | Data: USB Serial JTAG (COM16, 2M baud)
+Flash: bootloader@0x2000 (⚠️ P4 专有!) | partition@0x8000 | app@0x10000
+Protocol: FRAME:<hex_size>\n + JPEG | Quality: 80 | 13.8fps, 12-14KB/帧
+单缓冲: 解码→文字叠加→flush (消除 DMA 竞态)
+```
+
+### 最终板 (ESP32-P4C6-Core)
+
+```
+P4 双核 360MHz + C6FH4 WiFi6/BLE5 | 32MB PSRAM + 16MB Flash
+MIPI-DSI 2-lane → ST7102 480×800 | I²C 触摸 1.8V | PN532 NFC
+I2S → ES7210(ADC) + ES8311(DAC) + NS4150(PA)
+PD 9V → 3.3V Buck + 1.8V LDO + 背光升压
+```
+
+### 引脚变化 (开发板 → 最终板)
+
+| 功能 | 开发板 | 最终板 | 原因 |
+|------|--------|--------|------|
+| 显示接口 | SPI IO16-20 | MIPI-DSI 34-39 | 换 DSI 屏 |
+| I2C SCL | IO18 | IO21 | IO18 模组未引出 |
+| I2S BCLK | IO16 | IO22 | IO16 模组未引出 |
+| I2S DOUT | IO15 | IO23 | IO15 模组未引出 |
+| LCD RST | IO18 | IO20 | 独立 GPIO |
+
+---
+
+## 七、文件结构
 
 ```
 vbcpet/
-├── firmware/                  # P4 固件 (ESP-IDF)
-│   ├── main/
-│   │   ├── vbcpet_main.c      # 主入口 — 显示初始化 + JPEG解码 + 串口帧接收 + 双缓冲
-│   │   ├── display_test.c     # ST7789V SPI 显示驱动 (40MHz, 竖屏 MADCTL=0x00)
-│   │   ├── display_test.h     # + display_test_get_panel()
-│   │   ├── serial_display.c   # 原始实现 (当前未编译，CMakeLists 用 display_test.c)
-│   │   ├── default_screen.h   # 内嵌十字准星 JPEG 启动画面
-│   │   ├── protocol.c         # DataChannel 协议 (构建+解析)
-│   │   └── CMakeLists.txt     # 依赖: driver esp_lcd esp_driver_jpeg esp_timer
-│   └── sdkconfig.defaults
-├── pc-host/                   # PC 端 (Python)
-│   ├── host.py                # WebRTC 信令 + 视频轨
-│   ├── stream_simple.py       # ★ 主力推流 — 无 drain 线程, Playwright JPEG 截图, quality 80
-│   ├── serial_stream.py       # 旧版推流 (有 drain 线程问题)
-│   ├── live2d_track.py        # Playwright 无头 Live2D 截图
-│   └── claude_sdk_driver.py   # Claude SDK 驱动
-├── live2d/                    # Live2D 渲染 (PixiJS)
-│   ├── render.html            # 240×320 竖屏渲染 (Cubism 4 + FPS计数器)
-│   ├── test.html              # Canvas 2D 测试页
-│   └── Hiyori/                # 角色模型
-├── hardware/                  # 硬件设计文档
-│   ├── development-plan.md    # 开发方案 (全流程)
-│   ├── phase0-validation.md   # Phase 0 验证清单
-│   ├── bom.md / pinmap.md / power-tree.md
-│   └── block-diagram.md
+├── firmware/                    # P4 固件 (ESP-IDF v5.5.3)
+│   └── main/
+│       ├── vbcpet_main.c        # 主入口
+│       ├── transport.c          # USB 串口收发
+│       ├── channel_demux.c      # 协议分流 + 行超时
+│       ├── display_pipeline.c   # JPEG 解码 + 帧管理
+│       ├── display_pipeline_spi.c  # ST7789V 后端
+│       ├── display_backend.h    # 显示抽象接口
+│       ├── interaction_engine.c # 交互处理
+│       ├── text_render.c        # 中文渲染 + 滚动
+│       ├── text_input.c         # 文字输入
+│       └── serial_display.c     # 旧版推流 (已替换)
+├── pc-host/                     # PC 端
+│   ├── serial_bridge.py         # ★ 主控: 推流 + Claude + 表情 + 心情
+│   ├── claude_sdk_driver.py     # Claude SDK 驱动
+│   ├── agent_driver.py          # 回调接口定义
+│   └── stream_test.py           # 纯推流压测
+├── live2d/                      # Live2D 渲染
+│   ├── render.html              # ★ 角色渲染 + 心情系统 + 动作队列
+│   ├── tune_expressions.html    # ★ 表情调参工具
+│   ├── server.py                # HTTP 服务器
+│   └── Hiyori/                  # 角色模型 + 纹理 + 10 真实 motion
+├── hardware/                    # 硬件设计
+│   ├── bom.md                   # ★ 物料清单 (全部定稿)
+│   ├── final-pinmap.md          # ★ 最终板引脚分配
+│   ├── devboard-pinmap.md       # 开发板引脚占用
+│   ├── pinmap.md                # 引脚规划 (含 DSI 屏 FPC)
+│   ├── power-tree.md            # 电源树
+│   ├── block-diagram.md         # 系统框图
+│   ├── phase0-validation.md     # Phase 0 验证清单
+│   ├── phase0-report.md         # Phase 0 验证报告
+│   └── development-plan.md      # 全流程开发方案
 ├── docs/
-│   ├── protocol.md            # DataChannel 协议 v1
-│   └── decisions.md           # ADR 架构决策
-├── debug-report.md            # 显示调试五大根因排查报告
-└── PROGRESS.md                # ← 本文件
+│   ├── protocol.md              # DataChannel 协议 v1
+│   └── decisions.md             # ADR 架构决策
+├── WORKLOG.md                   # 每日工作日志
+└── PROGRESS.md                  # ← 本文件
 ```
+
+---
+
+## 八、下一步
+
+| 优先级 | 任务 | 说明 |
+|--------|------|------|
+| **P0** | 绘制原理图 (KiCad) | BOM/引脚已定, 可以开始画 |
+| P1 | 固件引脚适配 | IO15/16/18 → IO21/22/23 |
+| P1 | P4 硬件端到端验证 | serial_bridge.py + 心情表情联动 |
+| P2 | ST7789V 颜色校正 | 软件色表映射 |
+| P2 | 调参工具刷新表情预设 | 用户在 tune_expressions.html 微调后同步到 render.html |
+
+### 预计时间线
+
+| 阶段 | 时间 | 状态 |
+|------|------|------|
+| Phase 0 Bring-up (推流+显示) | 1-2 周 | ✅ 完成 |
+| Phase 0 Live2D (模型+表情+心情) | 1 周 | ✅ 完成 |
+| BOM 定稿 + 引脚分配 | — | ✅ 完成 (7/28) |
+| Phase 1 原理图 (KiCad) | 2-3 周 | ⬜ 待开始 |
+| Phase 2 PCB | 3-4 周 | ⬜ |
+| Phase 3-4 打样+Bring-up | 3-5 周 | ⬜ |

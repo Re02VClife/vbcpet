@@ -108,68 +108,127 @@ window.playMotion=function(n){
 window.setExpression=function(n,v){
   console.log('setExpression stub (use applyEmotion):',n,v);return false;
 };
-/* 带过渡的表情切换 (推荐) */
-window._emotionTimer=null;
-window._currentEmotion='neutral';
-window.applyEmotion=function(name,duration){
-  duration=duration||500;
-  var model=window._model;
-  if(!model)return false;
-  var target=EMOTION_PRESETS[name];
-  if(!target){console.warn('Unknown emotion:',name);return false}
+/* ── 心情持续影响系统 v3 (动作队列) ──
+ * 保留原生眼眨 + 自然运动
+ * 队列循环: 播放 idle → 结束 → 插入表情(2.5s) → 下一 idle → ...
+ * 表情参数直接控制 */
+window._moodParams = {};         // 当前心情目标参数 (平滑过渡中)
+window._moodBlendBase = 0.45;    // 极端心情时的混合强度 (0~1)
+window._currentEmotion = 'neutral';
+window._moodTransitionTimer = null;
 
-  // 先停掉 idle motion (否则每帧动画会覆盖我们的参数)
-  var im=model.internalModel;
-  if(im&&im.motionManager){
-    im.motionManager.stopAllMotions();
+// 初始化心情参数为 neutral
+(function(){
+  var n=EMOTION_PRESETS.neutral;
+  for(var k in n){window._moodParams[k]=n[k];}
+})();
+
+/* ── 动作队列系统 v3 ──
+ * 保留原生眼眨 + 自然运动 (不使用 hook, 不触发额外 WebGL 错误)
+ * 队列循环: 播放 idle → 结束 → 插入表情(2s) → 下一 idle → ...
+ * 表情参数直接控制 */
+window._motionLoopTimer = null;
+window._origStartRandomMotion = null;
+
+/* 直接应用 _moodParams 到模型参数 */
+window._applyMoodParamsToModel = function() {
+  var m = window._model;
+  if (!m || !window._moodParams) return;
+  for (var id in window._moodParams) {
+    try { m.setParameterValue(id, window._moodParams[id]); } catch(e) {}
+  }
+};
+
+/* 动作队列循环: idle → 表情 → idle → 表情 → ... */
+window._motionQueueLoop = function() {
+  var m = window._model;
+  if (!m) return;
+  var im = m.internalModel;
+  if (!im || !im.motionManager) return;
+
+  // 1. 播放随机 idle 动作
+  if (window._origStartRandomMotion) {
+    window._origStartRandomMotion('Idle', 1);
   }
 
-  window._currentEmotion=name;
-  var keys=Object.keys(target);
-  var start={};
-  for(var i=0;i<keys.length;i++){
-    try{start[keys[i]]=model.getParameterValue(keys[i])}catch(e){start[keys[i]]=0}
+  // 2. 轮询等待动作结束 (每 200ms 检查 isFinished)
+  var checkInterval = setInterval(function() {
+    if (!window._model) { clearInterval(checkInterval); return; }
+    var im2 = window._model.internalModel;
+    if (!im2 || !im2.motionManager) { clearInterval(checkInterval); return; }
+    try {
+      if (im2.motionManager.isFinished()) {
+        clearInterval(checkInterval);
+        // 3. 动作结束 → 应用心情表情，暂停 2.5s
+        window._applyMoodParamsToModel();
+        if (window._motionLoopTimer) clearTimeout(window._motionLoopTimer);
+        window._motionLoopTimer = setTimeout(function() {
+          window._motionQueueLoop();  // 4. 循环
+        }, 2500);
+      }
+    } catch(e) { clearInterval(checkInterval); }
+  }, 200);
+};
+
+/* 平滑过渡 _moodParams 到目标值 (easeInOutQuad) */
+window._transitionMoodParams = function(target, duration) {
+  duration = duration || 800;
+  var keys = Object.keys(target);
+  var start = {};
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    start[k] = (window._moodParams[k] !== undefined) ? window._moodParams[k] : target[k];
   }
-  var t0=performance.now();
-  if(window._emotionTimer)clearInterval(window._emotionTimer);
-  if(window._emotionResumeTimer)clearTimeout(window._emotionResumeTimer);
-  window._emotionTimer=setInterval(function(){
-    var elapsed=performance.now()-t0;
-    var t=Math.min(elapsed/duration,1);
-    var ease=t<0.5?2*t*t:-1+(4-2*t)*t;
-    for(var i=0;i<keys.length;i++){
-      var k=keys[i];
-      var v=start[k]+(target[k]-start[k])*ease;
-      try{model.setParameterValue(k,v)}catch(e){}
+  var t0 = performance.now();
+  if (window._moodTransitionTimer) clearInterval(window._moodTransitionTimer);
+  window._moodTransitionTimer = setInterval(function() {
+    var t = Math.min((performance.now() - t0) / duration, 1);
+    var ease = t < 0.5 ? 2*t*t : -1 + (4-2*t)*t;  // easeInOutQuad
+    for (var i = 0; i < keys.length; i++) {
+      window._moodParams[keys[i]] = start[keys[i]] + (target[keys[i]] - start[keys[i]]) * ease;
     }
-    if(t>=1){
-      clearInterval(window._emotionTimer);window._emotionTimer=null;
-      // 过渡完成后 5 秒再恢复 idle 动画
-      window._emotionResumeTimer=setTimeout(function(){
-        try{model.motion('Idle');}catch(e){}
-      },5000);
-    }
-  },16);
-  console.log('emotion:',name,'->',keys.length,'params,',duration,'ms');
+    // 直接应用参数到模型
+    window._applyMoodParamsToModel();
+    if (t >= 1) { clearInterval(window._moodTransitionTimer); window._moodTransitionTimer = null; }
+  }, 16);
+};
+
+/* applyEmotion: 平滑更新 _moodParams → 应用到模型 */
+window.applyEmotion = function(name, duration) {
+  duration = duration || 800;
+  var model = window._model;
+  if (!model) return false;
+  var target = EMOTION_PRESETS[name];
+  if (!target) { console.warn('Unknown emotion:', name); return false; }
+  window._currentEmotion = name;
+  window._transitionMoodParams(target, duration);
+  console.log('emotion:', name, '(blend mode,', duration, 'ms)');
   return true;
 };
-window.getStatus=function(){
-  return{ready:window._ready,motions:window._motions,expressions:window._expressions,emotions:window._emotions,currentEmotion:window._currentEmotion,mood:window._mood};
+
+window.getStatus = function() {
+  return { ready: window._ready, motions: window._motions,
+    expressions: window._expressions, emotions: window._emotions,
+    currentEmotion: window._currentEmotion, mood: window._mood };
 };
-/* 心情值 0-100, <40=sad, 40-60=neutral, >60=happy, >80=surprised */
-window.setMood=function(v){
-  v=Math.max(0,Math.min(100,v));
-  window._mood=v;
-  if(window._moodText)window._moodText.text='Mood:'+v;
-  var emotion='neutral';
-  if(v>=80)emotion='surprised';
-  else if(v>=65)emotion='happy';
-  else if(v<=25)emotion='angry';
-  else if(v<=45)emotion='sad';
-  window.applyEmotion(emotion,300);
+
+/* 心情值 0-100: 0-25=angry, 25-45=sad, 45-65=neutral, 65-80=happy, 80+=surprised */
+window.setMood = function(v) {
+  v = Math.max(0, Math.min(100, v));
+  window._mood = v;
+  if (window._moodText) window._moodText.text = 'Mood:' + v;
+  var emotion = 'neutral';
+  if (v >= 80) emotion = 'surprised';
+  else if (v >= 65) emotion = 'happy';
+  else if (v <= 25) emotion = 'angry';
+  else if (v <= 45) emotion = 'sad';
+  // 心情变化越大过渡越慢，让表情切换更自然
+  var dur = 300 + Math.abs(v - 60) * 8;  // 300ms(基线) ~ 620ms(极端)
+  window.applyEmotion(emotion, dur);
   return v;
 };
-window.getMood=function(){return window._mood;};
+
+window.getMood = function() { return window._mood; };
 </script>
 
 <script type="module">
@@ -184,7 +243,7 @@ console.log('1. imports OK');
 const W=240, H=320;
 app = new PIXI.Application();
 await app.init({width:W, height:H, background:0x335577,
-    resolution:1, antialias:true, preserveDrawingBuffer: true});
+    resolution:1, antialias:true, preference:'webgl'});
 document.body.appendChild(app.canvas);
 console.log('2. canvas', app.canvas.width, 'x', app.canvas.height, 'screen', app.screen.width, 'x', app.screen.height);
 
@@ -236,6 +295,23 @@ try {
             window._expressions = im.motionManager.expressionManager.definitions.map(e=>e.name);
     }
     console.log('4. SUCCESS. motions:', window._motions, 'expressions:', window._expressions);
+
+    // ── 动作队列系统初始化 ──
+    // 保存原始 startRandomMotion，接管动作调度
+    if (im?.motionManager) {
+        window._origStartRandomMotion = im.motionManager.startRandomMotion.bind(im.motionManager);
+        // 拦截自动 idle：我们手动控制队列节奏
+        im.motionManager.startRandomMotion = function() {};
+        try { im.motionManager.stopAllMotions(); } catch(e) {}
+    }
+    // 保留原生眼眨 + 自然运动 (WebGL 错误可接受，动作间歇期会被表情覆盖)
+    // 应用初始表情 + 启动动作队列
+    setTimeout(function() {
+        window._applyMoodParamsToModel();
+        // 首次 idle 动作 1.5s 后启动
+        window._motionLoopTimer = setTimeout(window._motionQueueLoop, 1500);
+    }, 500);
+    console.log('Motion queue system ready (native eye blink + natural movements preserved)');
 
     window._ready = true;
 	} catch(err) {
