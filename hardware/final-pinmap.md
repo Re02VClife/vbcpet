@@ -130,6 +130,26 @@
 | 4,5 | C6_U0RXD/TXD | C6 调试 (预留测试点) |
 | 6-14 | C6_IO4-9,13-15 | 闲置扩展 |
 
+### 外设拓展 (2026-08-03) — 详见 [expansion.md](expansion.md)
+
+| 模组 Pin | GPIO | 功能 |
+|----------|------|------|
+| 41-46 | CSI_* | OV5640 MIPI 2-lane (D0P/N, D1P/N, CLKP/N) |
+| 20 | GPIO5 | CAM_MCLK (OV5640 XVCLK 24MHz) |
+| 27 | GPIO12 | CAM_RSTB |
+| 28 | GPIO13 | CAM_PWDN |
+| 50 | GPIO24 | SERVO_YAW (云台水平 PWM) |
+| 51 | GPIO25 | SERVO_PITCH (云台俯仰 PWM) |
+| 67 | GPIO39 | SD_DAT0 |
+| 68 | GPIO40 | SD_DAT1 |
+| 69 | GPIO41 | SD_DAT2 |
+| 70 | GPIO42 | SD_DAT3 |
+| 71 | GPIO43 | SD_CLK |
+| 72 | GPIO44 | SD_CMD |
+| 73 | GPIO45 | SD_CD (卡检测, 可选) |
+| 75 | GPIO47 | MPU_INT (六轴中断) |
+| 23/30 | GPIO8/21 | I2C 总线新增: OV5640 (0x3C) + MPU-6500 (0x68) |
+
 ---
 
 ## 供电架构

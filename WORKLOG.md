@@ -466,3 +466,46 @@ LED 级联: GPIO51─[33Ω]→LED1_DIN, LED1_DOUT→LED2_DIN, LED2_DOUT→LED3_D
 - ✅ PCB 布局布线指南就绪
 - ✅ 全部硬件文档已同步最新方案
 - 🔧 原理图绘制中 (EDA 中需更新 Sheet 05 为新的轴座+反贴灯方案)
+
+## 2026-08-02 (周日)
+
+### 屏背光与供电核实 (YDP430BT009 手册)
+
+pdftotext 成功提取屏手册全文, 确认背光 **8 LED 4S2P**, IF=20×2=40mA, Vf=10.8~13.6V (typ 12.2V)。
+- **R5 背光采样电阻 5.1Ω→15Ω** (MT3608 恒流 0.6V/15Ω=40mA)
+- 屏 VDD = 3.0~3.6V (typ 3.3V) → FPC VDD3.3V 直连 3V3, **无需 LDO**
+- 触摸 I2C 标称 1.8V 电平, 3.3V 直连可行
+
+### 全模块 datasheet 排查 (修正 3 处)
+
+- **MP2315**: FB 基准确认 **0.8V** (非 0.6V) → 分压 100k/22k 改 **40.2k/12.7k** (原会输出 4.44V); VCC=0.1µF, BST=100nF+20Ω
+- **MAX98357A**: GAIN 接 GND = **12dB** (原标 3dB 错误)
+- **NT3H2111**: FD 开漏, 需 **4.7k 上拉** (原设计漏)
+- 确认无误: MT3608 (FB 0.6V), ZTS6672 (SELECT 分声道), SK6812 (5V 直驱), 模组 88pin 与 pinmap 一致
+
+### 接线方案文档
+
+- 新建 [connection-fix.md](hardware/schematic/connection-fix.md): 逐脚接线方案 + 元件变更表
+
+## 2026-08-03 (周一)
+
+### 原理图网表复核 (断线全部修复)
+
+- Netlist 08-03 复核: MP2315/MT3608/背光/屏 FPC/NFC 全部接好
+- P0 修复: R4 接通 VBUS→+5V; SK6812 VDD 并入 +5V (5V 网络更名 +5V)
+- P1 修复: 新增 IPEX U4 (LAN_OUT); I2C 上拉 R16/R17 (4.7k)
+- 剩余 P2: I2S_MCLK 孤立 (GPIO5 可释放); GAIN=15dB (确认)
+
+### 外设拓展方案
+
+- 新建 [expansion.md](hardware/expansion.md): OV5640 MIPI 摄像头 + MPU-6500 六轴 + 舵机云台×2 + microSD (SDIO 4-bit)
+- GPIO 分配: GPIO5(MCLK)/12(RSTB)/13(PWDN), 24/25(舵机), 39-44(SD), 47(MPU_INT), CSI 41-46
+- 摄像头接口确认: ESP32-S3-CAM 摄像头是 **DVP 24pin**, 不能接 P4 MIPI-CSI → 弃用, 换 **MIPI 版 OV5640**
+- 电源预算: 3V3 新增 ~250mA (总 ~1.45A < 2A); 舵机走 VBUS 5V + 470µF
+
+### 当前状态
+
+- ✅ 原理图断线全部修复
+- ✅ 外设拓展方案定案
+- ✅ 文档同步: PROGRESS / WORKLOG / final-pinmap / connection-fix / expansion
+- 🔧 PCB 加入外设元件; 待确认 MIPI 摄像头模块 pinout

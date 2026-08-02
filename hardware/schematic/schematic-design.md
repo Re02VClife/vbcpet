@@ -1,12 +1,12 @@
 # 原理图设计文档 — vbcpet 桌宠主板
 
-> 版本: v0.4 | 日期: 2026-07-30 | 主控: ESP32-P4C6-Core
+> 版本: v0.6 | 日期: 2026-08-02 | 主控: ESP32-P4C6-Core
 
 ## Sheet 规划
 
 | Sheet | 内容 |
 |-------|------|
-| 01 电源 | USB-C + CH224K(可选) + MP2315 Buck + MT3608 背光 |
+| 01 电源 | USB-C + MP2315 Buck + MT3608 背光 (CH224K 已砍) |
 | 02 主控 | P4C6-Core + Strapping + USB OTG + I2C/I2S/GPIO |
 | 03 显示 | DSI FPC 30pin + 触摸 3.3V 直连 + 背光 LED |
 | 04 音频 | MAX98357A + ZTS6672 x2 + 喇叭 (全数字 I2S) |
@@ -47,18 +47,12 @@ USB-C 5V (CH224K 可选 9V)
 
 USB1: VBUS(A4/9,B4/9)经F1, GND(A1/12,B1/12), D+(A6,B6)->P4_DP, D-(A7,B7)->P4_DM, CC1/2->CH224K
 
-### CH224K PD (可选)
+### CH224K PD — 已砍 (2026-08-02 决策)
 
-| 位号 | 元件 | 封装 |
-|------|------|------|
-| U2 | CH224K | SOT-23-6 |
-| R1,R2 | 5.1kohm | 0603 |
-| C3 | 1uF | 0603 |
+> 纯 USB 5V, 不请求 9V。CC1/CC2 用 5.1kΩ 下拉到 GND (网表 R2/R3 已实现)。
+> 原方案: 请求 9V, 5V 回退。功耗 ~4.2W << USB-C 5V/15W, 无需保留。
 
-Pin 1=VBUS, 2=GND, 3=CC1, 4=CC2, 5=+3V3(请求9V), 6=NC
-> 可去掉, 功耗~4.2W << USB-C 5V/15W
-
-### MP2315 Buck 3.3V
+### MP2315 Buck 3.3V — ✅ 已确认 (2026-08-02)
 
 | 位号 | 元件 | 封装 |
 |------|------|------|
@@ -67,11 +61,17 @@ Pin 1=VBUS, 2=GND, 3=CC1, 4=CC2, 5=+3V3(请求9V), 6=NC
 | C4 | 10uF | 0805 |
 | C5 | 22uF | 0805 |
 | C6 | 100nF | 0603 |
-| R_FBH | 100kohm | 0603 |
-| R_FBL | 22kohm | 0603 |
+| R_FBH (R6) | 40.2kohm 1% | 0603 |
+| R_FBL (R11) | 12.7kohm 1% | 0603 |
+| C_VCC | 0.1uF (新增) | 0603 |
+| C_BST | 100nF (新增) | 0603 |
+| R_BST | 20ohm (新增) | 0603 |
 
-EN=VBUS, VIN=VBUS(4.5-24V), SW->L1->+3V3, FB->R_FBH->+3V3 + R_FBL->GND
-Vout=0.6*(1+100k/22k)=3.33V
+EN=VBUS, VIN=VBUS, SW->L1->+3V3
+FB->R_FBH(40.2k)->+3V3 + R_FBL(12.7k)->GND
+VCC->C_VCC(0.1uF)->GND;  BST->100nF + 20Ω(串联)->SW
+Vout=0.8*(1+40.2k/12.7k)=3.33V
+> FB 基准=0.8V(非 0.6V): 原 100k/22k 会输出 4.44V, 2026-08-02 修正
 
 ### MT3608 背光
 
@@ -81,10 +81,16 @@ Vout=0.6*(1+100k/22k)=3.33V
 | L2 | 10uH 功率电感 | CD54 |
 | D2 | SS14 | SMA |
 | C9 | 1uF | 0805 |
-| R5 | 5.1ohm | 0603 |
+| R5 | 15ohm | 0603 |
 
-SW->L2->+3V3, VIN=+3V3, EN=GPIO48(BL_PWM), FB->R5->GND, OV->D2->LED_A
-LED_A->FPC 1-2, FPC 4-5(LEDK)->R5->GND
+引脚(SOT-23-6): 1=SW, 2=GND, 3=FB, 4=EN, 5=IN, 6=NC
+VIN=+3V3, EN=GPIO48(BL_PWM)
+SW->L2(10uH)->D2(SS14)阳极, D2阴极->LED_A -> FPC 1-2 (屏内 4S2P LED 串)
+FPC 4-5(LEDK) -> R5(15Ω) -> GND, FB 接 R5 与 LEDK 之间节点
+
+恒流: FB 基准=0.6V, I=0.6V/15Ω=40mA
+> 屏手册 (YDP430BT009-V1 p8) 确认: 8 LED 4串2并, IF=20mA×2=40mA, Vf=10.8~13.6V (typ 12.2V)
+> R5 原 5.1Ω(对应 117mA)错误, 2026-08-02 修正为 15Ω
 
 ---
 
@@ -161,12 +167,12 @@ GPIO5(20)=释放(无需MCLK)
 | 14,15 | MIPI_D1P/N |
 | 17,18 | MIPI_D0P/N |
 | 21 | LCD_RST |
-| 22-23 | +3V3 |
-| 25 | I2C_SCL (3.3V直连) |
-| 26 | I2C_SDA (3.3V直连) |
+| 22-23 | +3V3 (VDD, 手册 3.0~3.6V typ 3.3V 确认) |
+| 25 | I2C_SCL (3.3V直连; 触摸 I2C 标称 1.8V 电平) |
+| 26 | I2C_SDA (3.3V直连; 同上) |
 | 27 | TP_RST (GPIO9, 3.3V直连) |
 | 28 | TP_INT (GPIO10, 3.3V直连) |
-| 30 | +3V3 (TP_VDD) |
+| 30 | +3V3 (TP_VDD, 手册确认) |
 | 3,6,8,9,20,24 | NC |
 | 7,10,13,16,19,29 | GND |
 
@@ -190,7 +196,7 @@ P4 I2S0 ─ DOUT ───→ MAX98357A DIN
 | Pin | 连接 |
 |-----|------|
 | 1 DIN | I2S_DOUT |
-| 2 GAIN | GND (3dB) |
+| 2 GAIN | GND (12dB) |
 | 3,11,15 | GND |
 | 4 SD_MODE# | PA_EN (HIGH=开) |
 | 5,6,12,13 | NC |
@@ -202,6 +208,7 @@ P4 I2S0 ─ DOUT ───→ MAX98357A DIN
 | 17 EP | GND |
 
 > 免滤波D类, 直连喇叭
+> GAIN: GND=12dB (原标 3dB 错误; 3dB 需 VDD 经 100kΩ, 15dB 需 GND 经 100kΩ)
 
 ### ZTS6672 x2
 
@@ -253,7 +260,7 @@ VDD 全接 VBUS(5V) + 100µF 总去耦 + 每灯 100nF 旁路
 |------|------|------|
 | U16 | NT3H2111 | SO-8 / TSSOP-8 |
 
-VCC=+3V3, GND, SCL/SDA=I2C总线, FD=NFC_FD(GPIO11), VOUT=NC, LA/LB=PCB线圈天线
+VCC=+3V3, GND, SCL/SDA=I2C总线, FD=NFC_FD(GPIO11) + 4.7k上拉→+3V3(开漏), VOUT=NC, LA/LB=PCB线圈天线
 
 NFC天线: C13,C14(调试), C15,C16(22pF), R12,R13(2.2Ω)
 
