@@ -1,6 +1,6 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-07-28 | 当前阶段: Phase 0 收尾 → Phase 1 硬件设计启动
+> 更新: 2026-08-03 | 当前阶段: Phase 1 硬件设计 — 断线已修复, 外设拓展定案, PCB 布局中
 
 ---
 
@@ -66,8 +66,24 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 | BOM | ✅ **全部定稿** | 5/5 ⚠️ 已解决 |
 | 最终板引脚分配 | ✅ | [final-pinmap.md](hardware/final-pinmap.md) — P4C6-Core 88pin 完整分配 |
 | 开发板引脚记录 | ✅ | [devboard-pinmap.md](hardware/devboard-pinmap.md) — WT9932P4-TINY 实际占用 |
-| 原理图 | ⬜ | 待开始 (KiCad) |
-| PCB | ⬜ | 待原理图完成后 |
+| 原理图 | ✅ **断线已修复** | EasyEDA 网表复核通过, P0/P1 断线全部接好 |
+| 外设拓展 | ✅ **方案定案** | OV5640 MIPI + MPU-6500 + 舵机×2 + microSD → [expansion.md](hardware/expansion.md) |
+| PCB | 🔧 布局中 | 基础布局完成, 待加入外设元件 |
+
+#### 原理图审计 (2026-08-02)
+
+- **背光**: 屏手册确认 8 LED 4S2P, IF=20×2=40mA, Vf 10.8~13.6V → **R5 采样电阻 5.1Ω→15Ω** (MT3608 恒流 0.6V/15Ω=40mA)
+- **屏供电**: 手册 3.2 节 Supply VDD 3.0~3.6V (typ 3.3V) → FPC VDD3.3V/TP_VDD 直连 3V3, **无需 LDO**
+- **MP2315**: FB 基准确认 **0.8V** (非 0.6V) → 分压 **100k/22k 改 40.2k/12.7k** (原会输出 4.44V); VCC=0.1µF, BST=100nF+20Ω
+- **MAX98357A**: GAIN 接 GND = **12dB** (原标 3dB 错误)
+- **NFC**: NT3H2111 FD 开漏, **需 4.7k 上拉** (原设计漏)
+- **PD**: 已砍 (纯 USB 5V), CC1/CC2 5.1kΩ 下拉
+- **完整接线方案**: [connection-fix.md](hardware/schematic/connection-fix.md) ← 逐脚接线 + 元件变更表
+- **08-03 网表复核**: MP2315/MT3608/背光/屏 FPC/NFC 已全部接好 ✅
+- **08-03 二次复核**: P0×2(5V 通路 R4→+5V、SK6812 VDD 并入 +5V)+ P1×2(IPEX U4、I2C 上拉 R16/R17)全部修复 ✅
+- **剩余 P2×2**: I2S_MCLK 孤立(GPIO5 可释放);GAIN=15dB(确认是否改 12dB)
+- **待办**: 5V 网络更名 **+5V**, BOM/文档需同步;IPEX 地脚 PCB 阶段铺地
+- **08-03 外设拓展**: 新增 OV5640 摄像头(MIPI-CSI) + MPU-6500 六轴 + 舵机云台×2 + microSD(SDIO 4-bit) → [expansion.md](hardware/expansion.md)
 
 ### 🔧 待优化
 
@@ -239,6 +255,7 @@ vbcpet/
 │   ├── final-pinmap.md          # ★ 最终板引脚分配
 │   ├── devboard-pinmap.md       # 开发板引脚占用
 │   ├── pinmap.md                # 引脚规划 (含 DSI 屏 FPC)
+│   ├── expansion.md             # ★ 外设拓展 (摄像头/六轴/舵机/SD)
 │   ├── power-tree.md            # 电源树
 │   ├── block-diagram.md         # 系统框图
 │   ├── phase0-validation.md     # Phase 0 验证清单
@@ -257,7 +274,8 @@ vbcpet/
 
 | 优先级 | 任务 | 说明 |
 |--------|------|------|
-| **P0** | 绘制原理图 (KiCad) | BOM/引脚已定, 可以开始画 |
+| **P0** | 加入外设元件 (EasyEDA) | 按 [expansion.md](hardware/expansion.md): 摄像头座/MPU-6500/舵机座/microSD + LDO (等 MIPI 摄像头 pinout) |
+| P1 | ERC + BOM 同步 | 清零孤立网络 (GPIO5 MCLK), 位号 R5/R14、+5V 命名同步 |
 | P1 | 固件引脚适配 | IO15/16/18 → IO21/22/23 |
 | P1 | P4 硬件端到端验证 | serial_bridge.py + 心情表情联动 |
 | P2 | ST7789V 颜色校正 | 软件色表映射 |
@@ -270,6 +288,6 @@ vbcpet/
 | Phase 0 Bring-up (推流+显示) | 1-2 周 | ✅ 完成 |
 | Phase 0 Live2D (模型+表情+心情) | 1 周 | ✅ 完成 |
 | BOM 定稿 + 引脚分配 | — | ✅ 完成 (7/28) |
-| Phase 1 原理图 (KiCad) | 2-3 周 | ⬜ 待开始 |
+| Phase 1 原理图 (EasyEDA) | 2-3 周 | 🔧 断线已修复, 外设拓展中 |
 | Phase 2 PCB | 3-4 周 | ⬜ |
 | Phase 3-4 打样+Bring-up | 3-5 周 | ⬜ |
