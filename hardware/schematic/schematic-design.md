@@ -271,7 +271,7 @@ NFC天线: C13,C14(调试), C15,C16(22pF), R12,R13(2.2Ω)
 |------|------|------|
 | J2 | USB-A 母座 (USB 2.0) | SMT/THT |
 | F_USB | PPTC 500mA | 0805 |
-| D_USB | USBLC6-2SC6 | SC70-6 |
+| D_USB | USBLC6-2SC6 | SOT-23-6L |
 | C_USB_BULK | 100µF | 1206 |
 
 ```
