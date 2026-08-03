@@ -503,9 +503,32 @@ pdftotext 成功提取屏手册全文, 确认背光 **8 LED 4S2P**, IF=20×2=40m
 - 摄像头接口确认: ESP32-S3-CAM 摄像头是 **DVP 24pin**, 不能接 P4 MIPI-CSI → 弃用, 换 **MIPI 版 OV5640**
 - 电源预算: 3V3 新增 ~250mA (总 ~1.45A < 2A); 舵机走 VBUS 5V + 470µF
 
+### 外设拓展实装 (原理图, 08-03 下午)
+
+**USB-A 外设口** (方案定稿 → 实装):
+- USB2 (USB-A 母座 QHHTZB) + F1 (PPTC 500mA/16V) + D2 (USBLC6-2SC6)
+- **FS OTG host 验证**: ESP-IDF v5.5.3 支持 P4 双 OTG, `usb_host_config_t.peripheral_map = BIT1` 选 FS 外设 (GPIO26/27, 模组 pin53/54); 源码依据 `soc/esp32p4/usb_dwc_periph.c` (controllers[1].internal_phy_io = dp27/dm26)
+- 数据线用独立网络 **USB_A_DP / USB_A_DM** (不占用 HS 调试口 USB_DP/USB_DM)
+
+**其他外设实装**:
+- MPU-6500 (U7): I2C 0x68 + MPU_INT→GPIO47 + REGOUT 去耦
+- microSD (TF1): SDIO 4-bit (GPIO39-44) + CD (GPIO45)
+- 舵机 ×4 (U8-U11): SERVO1_YAW/GPIO24 + SERVO2_PITCH/GPIO25 驱动; SERVO3/GPIO28 + SERVO4/GPIO29 **预留** 3 线接口
+- 功放 U1→**U12** (CH98357): 全 11 连接 (DIN/GAIN=GND/SD_MODE/BCLK/LRCLK/VDD=5V/OUTP/OUTN)
+
+**网表审查修复**:
+- USB2 D+/D- 网络合并: I/O1/I/O2 → USB_A_DP/USB_A_DM (USBLC6 pin1/6 与 pin3/4 内部合并)
+- USB2 D+/D- **极性交叉**修复
+- 功放重接 (原 U1 仅 GND)
+
+**网表工具**:
+- [tools/schematic_snapshot.py](tools/schematic_snapshot.py): 解析 epro2 (zip→epru, 按 DOCHEAD 分段取 SCH_PAGE/PCB) → 元件清单 + PAD_NET 网络
+- [tools/schematic_review.py](tools/schematic_review.py): 自动审查 USB 极性 / 悬空网络 / 关键元件连接完整性
+
 ### 当前状态
 
-- ✅ 原理图断线全部修复
-- ✅ 外设拓展方案定案
-- ✅ 文档同步: PROGRESS / WORKLOG / final-pinmap / connection-fix / expansion
-- 🔧 PCB 加入外设元件; 待确认 MIPI 摄像头模块 pinout
+- ✅ 原理图外设拓展实装 (USB 口 + MPU + SD + 舵机×4), 摄像头搁置
+- ✅ 全板网表审查通过 (USB 极性/悬空/元件完整)
+- ✅ 网表实时解析 + 自动审查工具就绪
+- ✅ 文档同步: PROGRESS / WORKLOG / expansion / final-pinmap / BOM
+- 🔧 PCB 布局; 摄像头待 MIPI 模块 pinout

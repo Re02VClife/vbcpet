@@ -188,7 +188,7 @@ OV5640 2-lane 1080p 约 **150mA** (发热明显,机壳需散热孔), 3V3 侧新�
 | C_MPU | 100nF + 1µF | MPU 去耦 |
 | J_USB | USB-A 母座 (USB 2.0) | 外设口, 卧式/立式 |
 | F_USB | PPTC 500mA (JK16-500) | 0805, VBUS 限流 |
-| D_USB | USBLC6-2SC6 | SC70-6, DP/DM/VBUS ESD |
+| D_USB | USBLC6-2SC6 | SOT-23-6L, DP/DM/VBUS ESD |
 | C_USB | 100µF + 100nF | 1206 + 0603, USB VBUS 去耦 |
 
 ## 十、布局要点

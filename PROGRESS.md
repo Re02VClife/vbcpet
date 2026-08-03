@@ -1,6 +1,6 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-08-03 | 当前阶段: Phase 1 硬件设计 — 断线已修复, 外设拓展定案, PCB 布局中
+> 更新: 2026-08-03 | 当前阶段: Phase 1 硬件设计 — 外设拓展实装, 网表审查通过, PCB 布局中
 
 ---
 
@@ -67,7 +67,7 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 | 最终板引脚分配 | ✅ | [final-pinmap.md](hardware/final-pinmap.md) — P4C6-Core 88pin 完整分配 |
 | 开发板引脚记录 | ✅ | [devboard-pinmap.md](hardware/devboard-pinmap.md) — WT9932P4-TINY 实际占用 |
 | 原理图 | ✅ **断线已修复** | EasyEDA 网表复核通过, P0/P1 断线全部接好 |
-| 外设拓展 | ✅ **方案定案** | OV5640 MIPI + MPU-6500 + 舵机×2 + microSD → [expansion.md](hardware/expansion.md) |
+| 外设拓展 | ✅ **已实装** | USB 外设口 + MPU-6500 + microSD + 舵机×4 已画; 摄像头搁置 → [expansion.md](hardware/expansion.md) |
 | PCB | 🔧 布局中 | 基础布局完成, 待加入外设元件 |
 
 #### 原理图审计 (2026-08-02)
@@ -84,6 +84,8 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 - **剩余 P2×2**: I2S_MCLK 孤立(GPIO5 可释放);GAIN=15dB(确认是否改 12dB)
 - **待办**: 5V 网络更名 **+5V**, BOM/文档需同步;IPEX 地脚 PCB 阶段铺地
 - **08-03 外设拓展**: 新增 OV5640 摄像头(MIPI-CSI) + MPU-6500 六轴 + 舵机云台×2 + microSD(SDIO 4-bit) → [expansion.md](hardware/expansion.md)
+- **08-03 实装**: USB 外设口 (USB2/F1/D2) + MPU-6500 (U7) + microSD (TF1) + 舵机×4 (2驱动+2预留) 已画; 功放 U12 全接; **全板网表审查通过** (USB 极性/悬空/元件完整)
+- **08-03 网表工具**: [schematic_snapshot.py](tools/schematic_snapshot.py) 解析 epro2 → 元件+网络; [schematic_review.py](tools/schematic_review.py) 自动审查 (USB 极性/悬空/连接完整性)
 
 ### 🔧 待优化
 
@@ -261,6 +263,9 @@ vbcpet/
 │   ├── phase0-validation.md     # Phase 0 验证清单
 │   ├── phase0-report.md         # Phase 0 验证报告
 │   └── development-plan.md      # 全流程开发方案
+├── tools/                       # 网表工具 (2026-08-03 新增)
+│   ├── schematic_snapshot.py    # 解析 .epro2 → 元件清单 + 网络连接
+│   └── schematic_review.py      # 自动审查: USB 极性/悬空/连接完整性
 ├── docs/
 │   ├── protocol.md              # DataChannel 协议 v1
 │   └── decisions.md             # ADR 架构决策
@@ -274,7 +279,9 @@ vbcpet/
 
 | 优先级 | 任务 | 说明 |
 |--------|------|------|
-| **P0** | 加入外设元件 (EasyEDA) | 按 [expansion.md](hardware/expansion.md): 摄像头座/MPU-6500/舵机座/microSD + LDO (等 MIPI 摄像头 pinout) |
+| **P0** | PCB 布局 | 已画元件转入 PCB, 按 [expansion.md](hardware/expansion.md) |
+| P1 | 摄像头 (搁置) | 待 MIPI 版 OV5640 模块 30pin pinout 确认后再画 |
+| P1 | ERC + BOM 同步 | 位号 U1→U12 变动、SPK 隔直 C3/C4 是否保留、+5V 命名同步 |
 | P1 | ERC + BOM 同步 | 清零孤立网络 (GPIO5 MCLK), 位号 R5/R14、+5V 命名同步 |
 | P1 | 固件引脚适配 | IO15/16/18 → IO21/22/23 |
 | P1 | P4 硬件端到端验证 | serial_bridge.py + 心情表情联动 |
