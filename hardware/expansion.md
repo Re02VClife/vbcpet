@@ -1,7 +1,7 @@
-# 外设拓展方案 — v1.0
+# 外设拓展方案 — v1.1
 
 > 日期: 2026-08-03 | 主控: ESP32-P4C6-Core | 基于 Netlist 08-03 + [final-pinmap.md](final-pinmap.md)
-> 新增: 摄像头 / 六轴 / 舵机云台 / SD 卡
+> 新增: 摄像头 / 六轴 / 舵机云台 / SD 卡 / USB 外设口
 
 ## 一、总览
 
@@ -11,6 +11,7 @@
 | 六轴 IMU | MPU-6500 (QFN-24) | I2C | 1 (INT) | 3V3 |
 | 舵机云台 ×2 | SG90/MG90S | LEDC/MCPWM | 2 | 5V (VBUS) |
 | SD 卡 | microSD 座 | SDIO 4-bit | 6 (+1 CD) | 3V3 |
+| USB 外设口 | USB-A 母座 | USB 1.1 FS OTG (GPIO26/27) | 2 | 5V (VBUS) |
 
 ## 二、GPIO 分配(新增)
 
@@ -21,6 +22,8 @@
 | **GPIO13** | CAM_PWDN | 摄像头掉电 (高=关) |
 | **GPIO24** | SERVO_YAW | 云台水平 PWM (50Hz, 500~2500µs) |
 | **GPIO25** | SERVO_PITCH | 云台俯仰 PWM |
+| **GPIO26** | USB_DM | USB-A 外设口 D- (OTG_FS) |
+| **GPIO27** | USB_DP | USB-A 外设口 D+ (OTG_FS) |
 | **GPIO39** | SD_DAT0 | SD1_CDATA0 |
 | **GPIO40** | SD_DAT1 | SD1_CDATA1 |
 | **GPIO41** | SD_DAT2 | SD1_CDATA2 |
@@ -116,7 +119,47 @@ OV5640 2-lane 1080p 约 **150mA** (发热明显,机壳需散热孔), 3V3 侧新�
 - SDIO 走线短、等长, 远离 CSI/MIPI 高频线。
 - 若需省 1 脚, 可去掉 SD_CD (热插拔用轮询)。
 
-## 七、电源预算(3V3 侧)
+## 七、USB 外设口 — USB-A FS OTG
+
+> 2026-08-03 新增: 通用 USB Host 口, 用于机械臂 / 电子设备 / 手机互连 / 低速摄像头。
+> 与调试口 (USB-C HS, pin48/49) **完全独立** — 走 FS_PHY2 (GPIO26/27), 零冲突。
+
+### 接线
+
+| P4 信号 | GPIO | → USB-A 母座 |
+|---------|------|--------------|
+| OTG_FS D+ | GPIO27 | D+ (pin3) |
+| OTG_FS D- | GPIO26 | D- (pin2) |
+| VBUS 5V | — | VBUS (pin1, 经限流) |
+| GND | — | GND (pin4) + 外壳屏蔽 |
+
+- USB-A 母座 (USB 2.0 规格), DP/DM 做 **45Ω 差分等长包地**, 远离背光 Boost 开关节点。
+- VBUS 从板载 5V 取, 经 **500mA PPTC 限流** + **USBLC6-2SC6 ESD 保护**。
+- 母座旁 100µF + 100nF 去耦 (外设浪涌)。
+
+### 设备兼容
+
+| 设备类型 | 协议 | 12Mbps (FS) 带宽 |
+|----------|------|------------------|
+| 机械臂 (lerobortso101) | USB CDC 虚拟串口 | ✅ 富余 |
+| 电子设备 | CDC / HID | ✅ |
+| USB 摄像头 | UVC MJPEG | ⚠️ 仅低分辨率 (720p 需 15~30Mbps) |
+| 手机互连 | ADB / MTP | ⚠️ 慢但可用 |
+
+> 高带宽视频由 OV5640 MIPI (1080p) 承担, 此口面向控制类外设。
+
+### 软件 (2026-08-03 已确认)
+
+- GPIO26/27 → FS_PHY2 → OTG_FS 控制器, ESP-IDF usb_host / TinyUSB 初始化时自动切 PHY。
+- **ESP-IDF v5.5.1+ 完整支持 P4 双 USB-OTG 驱动**: FS 控制器可作为 host (`usb_host_install` API 选择 HS/FS 控制器)。本项目 v5.5.3 ✅
+- **配置 (v5.5.3 源码已确认)**: `usb_host_config_t.peripheral_map = BIT1` 选择 **FS 外设** (index 1, GPIO26/27); HS 外设是 index 0。依据: `soc/esp32p4/usb_dwc_periph.c` (`controllers[1].internal_phy_io = {.dp=27, .dm=26}`)
+- 同一时刻仅一个 OTG 外设能做 host (v5.5.x 限制); USB-C (Serial JTAG, 走 FS_PHY1) 是 device 角色, 与 FS OTG host **不冲突** ✅
+- ⚠️ **打样后实测**: 接 FS 设备 (鼠标/U盘/机械臂 CDC) 验证枚举 (TinyUSB RHPORT 选 FS, 或 usb_host 配置 FS 控制器)
+- ⚠️ **P4 rev3 注意**: UTMI PHY 的 D+/D- 15k 下拉电阻需软件控制 (host 模式), 最终板芯片若为 rev3 需确认固件处理
+
+---
+
+## 八、电源预算
 
 | 新增负载 | 电流 |
 |----------|------|
@@ -126,10 +169,10 @@ OV5640 2-lane 1080p 约 **150mA** (发热明显,机壳需散热孔), 3V3 侧新�
 | **新增小计** | ~250mA |
 
 - 3V3 原预算 ~1.2A + 0.25A ≈ **1.45A** < MP2315 2A ✅ (余量 27%)
-- 5V 侧: 原 560mA + 舵机 400mA ≈ 1A < USB 5V/3A ✅
+- 5V 侧: 原 560mA + 舵机 400mA + **USB 外设口 ~500mA** ≈ **1.5A** < USB 5V/3A ✅ (余量 50%)
 - 建议将 MP2315 去耦 C4/C5 保持 10µF×2, 摄像头瞬态大, 可在 CSI 座旁加 10µF。
 
-## 八、新增元件清单
+## 九、新增元件清单
 
 | 位号 | 元件 | 封装/型号 |
 |------|------|-----------|
@@ -143,8 +186,12 @@ OV5640 2-lane 1080p 约 **150mA** (发热明显,机壳需散热孔), 3V3 侧新�
 | C_SD | 100nF + 10µF | SD 供电去耦 |
 | C_SERVO | 470µF 电解 + 100nF | 舵机电源 |
 | C_MPU | 100nF + 1µF | MPU 去耦 |
+| J_USB | USB-A 母座 (USB 2.0) | 外设口, 卧式/立式 |
+| F_USB | PPTC 500mA (JK16-500) | 0805, VBUS 限流 |
+| D_USB | USBLC6-2SC6 | SC70-6, DP/DM/VBUS ESD |
+| C_USB | 100µF + 100nF | 1206 + 0603, USB VBUS 去耦 |
 
-## 九、布局要点
+## 十、布局要点
 
 1. **CSI 差分**: 6 线 100Ω 差分等长 (±0.5mm), 包地, 远离背光 Boost (12.8V 开关噪声)。
 2. **摄像头座**放板边, 镜头朝外; FPC 走线短。
@@ -152,8 +199,9 @@ OV5640 2-lane 1080p 约 **150mA** (发热明显,机壳需散热孔), 3V3 侧新�
 4. **MPU-6500** 靠近板几何中心 (振动测量一致), 避开大电流/振动源。
 5. **SDIO** 走线短等长, 与 MIPI 分区域。
 6. 若加 LDO (2.8V/1.8V), 靠近摄像头座, 输出就近 1µF+100nF。
+7. **USB 外设口**放板边, DP/DM 45Ω 差分等长包地; VBUS 粗线, PPTC 紧贴母座。
 
-## 十、固件注意
+## 十一、固件注意
 
 | 项 | 说明 |
 |----|------|
@@ -162,8 +210,9 @@ OV5640 2-lane 1080p 约 **150mA** (发热明显,机壳需散热孔), 3V3 侧新�
 | MPU-6500 | I2C 0x68, 轮询或 INT 中断读取 accel/gyro |
 | 舵机 | LEDC 50Hz, 500~2500µs; 上电先复位到中位再使能 |
 | SD 卡 | sdmmc 驱动 4-bit SDIO, 25MHz, FAT 文件系统 |
+| USB 外设口 | usb_host 驱动 OTG_FS (GPIO26/27); 机械臂等 CDC-ACM class (v5.5.1+ 支持 FS host) |
 
-## 十一、待核实清单
+## 十二、待核实清单
 
 - [x] **摄像头方向**: MIPI 版 OV5640 (30pin FPC 模块, 2-lane); S3-CAM DVP 24pin 模块弃用
 - [ ] **MIPI 版模块电源**: 是否自带稳压 → 决定 3V3 直供 or 2.8V/1.8V 双 LDO (需模块 pinout)
@@ -171,3 +220,6 @@ OV5640 2-lane 1080p 约 **150mA** (发热明显,机壳需散热孔), 3V3 侧新�
 - [ ] 舵机型号/尺寸 → 确认扭矩与电流 (决定 470µF 是否足够)
 - [ ] microSD 卡座型号 (推入式) 与封装
 - [ ] 触摸 I2C 实际地址 (与 MPU/OV5640 确认不冲突: 现规划 0x24/0x3C/0x68/0x55)
+- [x] **FS OTG host 支持 (软件)**: ESP-IDF v5.5.1+ 支持 P4 双 OTG, FS 可做 host (2026-08-03 确认)
+- [ ] **FS OTG host 实测**: 打样后接 FS 设备验证枚举; 确认模组芯片 rev (v3 需软件下拉)
+- [ ] USB-A 母座型号/封装确认 (卧式或立式, 与外壳开孔匹配)

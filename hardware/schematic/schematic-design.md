@@ -1,6 +1,6 @@
 # 原理图设计文档 — vbcpet 桌宠主板
 
-> 版本: v0.6 | 日期: 2026-08-02 | 主控: ESP32-P4C6-Core
+> 版本: v0.7 | 日期: 2026-08-03 | 主控: ESP32-P4C6-Core
 
 ## Sheet 规划
 
@@ -10,7 +10,7 @@
 | 02 主控 | P4C6-Core + Strapping + USB OTG + I2C/I2S/GPIO |
 | 03 显示 | DSI FPC 30pin + 触摸 3.3V 直连 + 背光 LED |
 | 04 音频 | MAX98357A + ZTS6672 x2 + 喇叭 (全数字 I2S) |
-| 05 I/O | 4 凯华轴座 + SK6812 3215 ×4 + NT3H2111 NFC |
+| 05 I/O | 4 凯华轴座 + SK6812 3215 ×4 + NT3H2111 NFC + USB 外设口 |
 
 ### 全局网络
 
@@ -111,7 +111,8 @@ GPIO35(63)=悬空, GPIO37(64)=UART0_TXD, GPIO38(65)=UART0_RXD, GPIO34(57)=悬空
 
 ### USB
 
-48=USB_DM->USB1_D-, 49=USB_DP->USB1_D+
+48=USB_DM->USB1_D-, 49=USB_DP->USB1_D+ (USB-C: 供电 + HS/调试)
+GPIO27->USB-A D+ (外设口), GPIO26->USB-A D- (FS OTG, 独立于调试口)
 
 ### MIPI-DSI
 
@@ -264,6 +265,25 @@ VCC=+3V3, GND, SCL/SDA=I2C总线, FD=NFC_FD(GPIO11) + 4.7k上拉→+3V3(开漏),
 
 NFC天线: C13,C14(调试), C15,C16(22pF), R12,R13(2.2Ω)
 
+### USB 外设口 (2026-08-03 新增)
+
+| 位号 | 元件 | 封装 |
+|------|------|------|
+| J2 | USB-A 母座 (USB 2.0) | SMT/THT |
+| F_USB | PPTC 500mA | 0805 |
+| D_USB | USBLC6-2SC6 | SC70-6 |
+| C_USB_BULK | 100µF | 1206 |
+
+```
+D+ = GPIO27, D- = GPIO26 (FS OTG, 独立于 USB-C 调试口)
+VBUS = 板载 5V → F_USB PPTC 500mA → J2 VBUS
+ESD  D_USB 跨 D+/D-/VBUS; C_USB_BULK 100µF VBUS 去耦
+外壳 → GND
+```
+
+> 12Mbps FS: 机械臂(CDC)/电子设备/HID/手机低速互连 ✅; UVC 摄像头仅低分辨率。
+> 详见 [expansion.md](../expansion.md) 第 7 节。
+
 ---
 
 ## 附录
@@ -272,4 +292,4 @@ NFC天线: C13,C14(调试), C15,C16(22pF), R12,R13(2.2Ω)
 NT3H2111=0x55, 触摸=待确认
 
 ### BOM
-共35行, 见 bom-lcsc.csv。自建封装: P4C6-Core(88pin 22x4), FPC 30pin, IPEX1, 凯华轴座。
+共39行, 见 bom-lcsc.csv。自建封装: P4C6-Core(88pin 22x4), FPC 30pin, IPEX1, 凯华轴座, USB-A。
