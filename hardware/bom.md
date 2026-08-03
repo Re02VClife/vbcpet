@@ -31,6 +31,9 @@
 | 位号类 | 类别 | 建议型号 | 备注 |
 |---|---|---|---|
 | J1 | USB-C | USB-C 座（16pin） | 供电 + USB2.0 数据 |
+| J2 | USB-A 母座 | USB-A (USB 2.0) | 外设口 (FS OTG), 接机械臂/手机/低速摄像头 |
+| F_USB | 限流 | PPTC 500mA (JK16-500) | USB 外设口 VBUS 限流 |
+| D_USB | ESD | USBLC6-2SC6 | 外设口 DP/DM/VBUS ESD 保护 |
 | U2 | PD 受电 | **CH224K** (可选) | 请求 9V, 5V 回退, 可去掉直接用 5V |
 | U7 | DC-DC Buck | **MP2315** | 宽压→3.3V @ 2A |
 | U9 | 背光升压 | **MT3608** | 3.3V→12.2V/40mA |

@@ -21,6 +21,9 @@
       I2C 总线: NT3H2111(0x55) + 触摸(ST7102)        │  │ RST + 天线   │
       I2S 总线: MAX98357A + ZTS6672×2 (无 MCLK)      └──┘              │
                                                      └─────────────────┘
+
+   USB-A 外设口 (FS OTG, GPIO26/27) ── 机械臂 / 电子设备 / 手机互连 / 低速摄像头
+                     │  VBUS 5V (PPTC 500mA 限流) + USBLC6-2SC6 ESD
 ```
 
 ## 说明
@@ -30,5 +33,6 @@
 - **NFC**：NT3H2111 NFC Tag Plus，手机触碰检测 + 打开 APP，数据走 C6 WiFi
 - **按键**：凯华热插拔轴座 ×4 (Cherry MX 兼容)，SK6812 3215 ×4 级联 RGB 反贴背光
 - **供电**：USB-C 5V 直供全板，单线供电+数据+烧录+调试
+- **外设口**：USB-A 母座 (FS OTG, GPIO26/27)，独立于调试口，接机械臂/电子设备/手机，VBUS 5V 限流 500mA
 
 详见 [`modular-design.md`](modular-design.md) / [`bom.md`](bom.md) / [`power-tree.md`](power-tree.md)。

@@ -148,6 +148,8 @@
 | 72 | GPIO44 | SD_CMD |
 | 73 | GPIO45 | SD_CD (卡检测, 可选) |
 | 75 | GPIO47 | MPU_INT (六轴中断) |
+| 53 | GPIO26 | USB_DM (USB-A 外设口 D-, OTG_FS) |
+| 54 | GPIO27 | USB_DP (USB-A 外设口 D+, OTG_FS) |
 | 23/30 | GPIO8/21 | I2C 总线新增: OV5640 (0x3C) + MPU-6500 (0x68) |
 
 ---

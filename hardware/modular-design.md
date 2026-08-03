@@ -36,6 +36,10 @@
 | USB1 | USB-C 16pin | SMT | 供电+USB2.0 OTG |
 | F1 | 0Ω | 1206 | USB 跳线(替保险丝) |
 | D1 | TVS 5V | SOD-523 | ESD 保护 |
+| J2 | USB-A 母座 | SMT/THT | 外设口 (FS OTG, GPIO26/27) |
+| F_USB | PPTC 500mA | 0805 | 外设口 VBUS 限流 |
+| D_USB | USBLC6-2SC6 | SC70-6 | 外设口 ESD |
+| C_USB_BULK | 100µF | 1206 | 外设口 VBUS 去耦 |
 | SW1-4 | 凯华热插拔轴座 | MX 14×14mm 兼容 | 4 按键 (Cherry MX 可拔插) |
 | RST | 轻触 6×6mm | THT | 硬件复位 |
 | LED1-4 | SK6812 mini-E | 3215 ×4 反贴灯 | 按键 RGB 背光 (级联, 5V VBUS) |
@@ -49,7 +53,7 @@
 | R_DATA | 33Ω | 0603 | GPIO51→LED1_DIN 数据线匹配 |
 | C_LED_BULK | 100µF | 1206 | LED VDD 总去耦 |
 
-**主板 BOM: 35 行** (含外购模块 5 行)
+**主板 BOM: 39 行** (含外购模块 5 行)
 
 ## 系统框图
 
@@ -67,7 +71,8 @@
 │  │  I2S ────── MAX98357A 模块 + ZTS6672×2 模块  │    │
 │  │  DSI ────── FPC30 → 显示屏                    │    │
 │  │  GPIO ───── 4按键(轴座) + SK6812 + RST         │    │
-│  │  USB  ───── USB-C D+/D-                       │    │
+│  │  USB  ───── USB-C D+/D- (HS/调试)             │    │
+│  │  USB2 ───── USB-A D+/D- (FS 外设口)           │    │
 │  │  IPEX1 ──── 2.4G 天线                         │    │
 │  └───────────────────────────────────────────────┘    │
 │                                                       │
@@ -152,6 +157,18 @@
 
 > NT3H2111 是 NT3H2111 升级版: 密码保护、NDEF 888字节、新版硅片、pin2pin兼容、更便宜。
 
+### USB 外设口 (FS OTG, GPIO26/27)
+
+| USB-A 母座 (J2) | 连 |
+|-----------------|-----|
+| VBUS | ← VBUS 5V (经 F_USB PPTC 500mA) |
+| D+ | ← GPIO27 (USB_DP) |
+| D- | ← GPIO26 (USB_DM) |
+| GND | → GND (外壳屏蔽) |
+
+> ESD: D_USB (USBLC6-2SC6) 跨 D+/D-/VBUS; C_USB_BULK 100µF VBUS 去耦。
+> 与调试口 (USB-C, HS pin48/49) 完全独立, 零冲突。
+
 ### 显示
 
 | FPC Pin | 连 |
@@ -209,6 +226,8 @@ CHIP_PU ── M1:87 ── RST→GND
 
 USB_DM ── M1:48 ── USB1 D-
 USB_DP ── M1:49 ── USB1 D+
+USB_DM2 ─ M1:53(GPIO26) ── USB-A D- (FS 外设口)
+USB_DP2 ─ M1:54(GPIO27) ── USB-A D+ (FS 外设口)
 LAN_OUT ─ M1:2 ── IPEX1天线
 
 GPIO5 ─── M1:20 ── 悬空 (无MCLK)
@@ -236,7 +255,7 @@ GPIO5 ─── M1:20 ── 悬空 (无MCLK)
 
 | | 全分立 | 模块化 |
 |------|--------|--------|
-| 主板 BOM 行数 | 30 | 35 |
+| 主板 BOM 行数 | 30 | 39 |
 | 音频调试 | 自画 MAX98357A+麦外围 | 成品模块已验证 |
 | 电源调试 | 自画 全部 | 自画 Buck+Boost (常见芯片) |
 | 故障更换 | 拆焊 IC | I2S 模块可拔插 |
