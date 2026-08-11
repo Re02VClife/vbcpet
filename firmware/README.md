@@ -1,81 +1,89 @@
-# firmware (M2) — ESP32-P4 固件 + Wokwi 仿真
+# firmware — ESP32-P4 固件
 
-> 里程碑 M2。基于 **ESP-IDF (v5.5+)**，fork [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) 复用音频链路，
-> 传输层集成 [esp-webrtc-solution](https://github.com/espressif/esp-webrtc-solution)。
+> 基于 **ESP-IDF v5.5.3**, target `esp32p4`。
+> 主线: **串口 JPEG 推流管线**(Live2D 截图 → USB 串口 → P4 PPA 硬解 → 屏),已在开发板跑通;
+> 最终板 (ESP32-P4C6-Core, MIPI-DSI 480×800) 固件已就绪,待板到 bring-up。
 
-## 当前状态
+## 当前状态 (2026-08-11)
 
-**ESP32-P4 开发板已到** — Phase 0 硬件验证即将开始。固件代码为骨架状态，协议层完整，音频接口定义了但实现占位。
-### 初稿
-开发一个桌面的vibecoding桌宠，可以在外接设备（开发板）上对接电脑上claude code或小龙虾等AI代理。由llm根据交流环境、当前状态控制桌宠的live2D动作（参考neuro sama），可语音对话（参考小智），通过WIFI或USB连接电脑进行通讯。
-详细功能：
-屏幕显示二次元live2d形象，
-可对话，可通过对话控制电脑（如claude code编程）并实时反馈当前的工作状态（如编程工作阻塞时直接发声提醒）对接电脑上的claude code时，由于claude的输出文本一般都很大，需要总结、过滤、压缩到适合对话的文本量再发给硬件端。对话支持打断、声纹识别
-有面板界面，可以显示token用量等相关信息
-有快捷键（暂定4个快捷键yes、no、yes Always、面板）
-硬件方面可参考小智项目，但因为需要运行更复杂的live2d交互，可能需要更高级的开发板，高开销的流程可以在电脑上或服务端处理完再传给硬件
-和手机联动：可以充当手机支架，当手机竖着或是横着放在对应位置时，设备自动与手机互联，并将桌宠形象显示在手机上
-
-### 已实现
-
-| 模块 | 文件 | 说明 |
+| 模块 | 状态 | 说明 |
 |------|------|------|
-| 主入口 | `main/vbcpet_main.c` | NVS → WiFi → 音频 codec → 协议 hello 样例 |
-| 音频 codec 接口 | `main/audio_codec.{h,c}` | ES7210 ADC + ES8311 DAC（小智同款，`esp_codec_dev`），实现占位 |
-| 控制协议 | `main/protocol.{h,c}` | CharacterEvent v1 构造/解析（cJSON），含双通道常量 + 风险等级枚举，**API 对齐 Python 版** |
-| Wokwi 配置 | `diagram.json` | board-esp32-p4-preview |
-| IDF 配置 | `sdkconfig.defaults` | esp32p4 target, 16MB flash |
+| 显示后端抽象 | ✅ | `display_backend.h`, Kconfig 选择 SPI/DSI |
+| SPI 后端 (开发板) | ✅ | ST7789V 240×320, WT9932P4-TINY 已验证 |
+| **DSI 后端 (最终板)** | ✅ | MIPI-DSI 2-lane ST7102 480×800, `esp_lcd_st7102` 组件, 背光 PWM GPIO48 |
+| JPEG 硬解 | ✅ | PPA 解码, 单缓冲 (解码→文字→flush) |
+| 中文渲染 | ✅ | 7548 CJK 字形, UTF-8, 透明背景 |
+| 传输 | ✅ | USB Serial JTAG, RX 32KB (满分辨率帧缓冲) |
+| **外设驱动** | ✅ 编译验证 | 按键/SK6812/触摸/音频/MPU-6500/SD/舵机/NFC/USB-host (最终板) |
+| **bring-up 自检** | ✅ | UART0 控制台 `test <name>` / `test all` / `brightness` |
+| WebRTC 接收链路 | ⬜ 后台 | 骨架 + 清单, 见 [`../docs/webrtc-bringup.md`](../docs/webrtc-bringup.md) |
 
-### 尚未接入
+## 构建
 
-- [ ] WebRTC (`esp_webrtc` 组件，`idf_component.yml` 中注释)
-- [ ] MIPI-DSI 显示驱动
-- [ ] H.264 VPU 硬解 (`av_render`)
-- [ ] Opus 编解码 + AEC + VAD/打断
-- [ ] C6 esp-hosted 联网（P4 无原生 WiFi）
-- [ ] DataChannel 收发循环
-- [ ] 引脚映射（全部 GPIOxx 占位符）
+两种板型配置 (独立 build 目录, sdkconfig 互不干扰):
 
-### Wokwi 仿不了的
-MIPI-DSI 显示 / H.264 VPU 硬解 / PPA 加速 / C6 射频 — 需真硬件。
+| 目标 | 命令 (Git Bash) | bat |
+|------|------|------|
+| 最终板 (DSI 480×800) | `python _idf.py build` | `_build.bat` |
+| 开发板 (SPI 240×320) | `python _idf.py -B build_dev -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.devboard" -D SDKCONFIG="build_dev/sdkconfig" build` | `_build_dev.bat` |
 
-## 快速开始
+> `_idf.py` 是包装器: 剥掉 MSYSTEM (Git Bash 下 idf.py 会跳过 main) + 设置工具链 env。
+> 若在原生 IDF CMD 终端, 直接 `idf.py build` 即可。
 
-### 编译（需 ESP-IDF v5.5+）
+### 最终板 bring-up
 
-```bash
-# 在 ESP-IDF CMD 终端中（非 Git Bash, IDF 5.5+ 不支持 MSys）
-cd firmware
-idf.py set-target esp32p4
-idf.py build
+板到后: 烧录 → 串口监视器 (UART0 console, 波特率 115200 或 esptool 自动) →
+UART0 控制台命令:
+
+```
+help                       # 命令帮助
+list                       # 可用自检
+test all                   # 全部外设自检 (逐个跑)
+test buttons / leds / touch / audio / imu / sd / servo / nfc / usb
+brightness 80              # 背光 0-100
 ```
 
-### Wokwi 仿真
+自检设计: 每个外设驱动 `xxx_self_test()` 打印关键值 + PASS/FAIL,
+逐项核对硬件焊接/接线。上电时序见 `main/bringup.c`。
 
-用 **Wokwi VSCode 扩展**加载 `diagram.json`，指定 `build/vbcpet.elf` 为固件。
+## 结构
 
-串口监视器预期输出：
 ```
-vbcpet firmware booting on esp32p4 (IDF v5.x.x)
-I2C initialized (SDA=8 SCL=18)
-ES8311 DAC ready @24000Hz
-ES7210 ADC ready @16000Hz, 4ch TDM
-PA GPIO46 ready
-构造 hello: {"t":"hello","seq":1,...}
-构造 button: {"t":"button",...}
-初始化完成。等待 WebRTC 连接接入…
+firmware/
+├── _idf.py                    # idf.py 包装器 (MSYSTEM workaround)
+├── _build.bat / _build_dev.bat
+├── sdkconfig.defaults         # 最终板 (DSI + PSRAM)
+├── sdkconfig.defaults.devboard
+└── main/
+    ├── vbcpet_main.c          # 主循环: 传输→demux→JPEG+文字→flush
+    ├── transport_usb.c        # USB Serial JTAG 传输
+    ├── channel_demux.c        # FRAME/CTRL/raw 分流 + 行超时
+    ├── display_pipeline.c     # PPA JPEG 解码 + 单缓冲 (PSRAM)
+    ├── display_backend.h      # 后端抽象 (W/H/格式 Kconfig 化)
+    ├── display_pipeline_spi.c # ST7789V 后端
+    ├── display_pipeline_dsi.c # MIPI-DSI ST7102 后端 + 背光
+    ├── text_render.c          # CJK 渲染
+    ├── protocol.c             # CharacterEvent 协议 (cJSON)
+    ├── interaction_engine.c   # CTRL 分发表
+    ├── board_config.h         # ★ 最终板引脚唯一权威 (bring-up 调线只改这里)
+    ├── bringup.c              # 外设初始化 + UART0 控制台
+    ├── peripherals/           # 外设驱动 + 自检
+    │   ├── i2c_bus.c          # 共享 I2C (触摸/NFC/MPU/OV5640)
+    │   ├── buttons.c / sk6812.c / touch.c / audio.c
+    │   ├── mpu6500.c / sd_card.c / servo.c / nfc.c / usb_host.c
+    │   └── self_test.c        # 自检注册表
+    └── webrtc_skeleton.c      # WebRTC 参考骨架 (未编译)
 ```
 
-## 职责（M2 全貌）
+## 打样疑点 (板到后优先核对)
 
-- **显示**：WebRTC 视频轨 → VPU H.264 硬解 → `av_render` → MIPI-DSI
-- **音频**：ES7210/ES8311 + Opus + AEC + VAD/打断，走 WebRTC 音频轨
-- **联网**：C6 esp-hosted（SDIO/SPI），WebRTC 信令（本地 WHIP/HTTP）
-- **控制面**：DataChannel `ctrl` + `realtime` 收发（见 [`../docs/protocol.md`](../docs/protocol.md)）
-- **输入/传感**：4 按键 + 在位传感器 → 上行消息
+见 [`../hardware/README.md`](../hardware/README.md):
+- ⚠️ **D1 (USBLC6) pin5=VBUS_IN** 应为 +5V — 电池模式 USB-A 口会瘫痪 (bring-up 测 USB-A 电池模式)
+- ⚠️ **USB_DP/DM 线宽 7.3/10mil** 应为 9.5mil (90Ω)
+- ST7102 MIPI lane 顺序交叉 (模组 vs FPC) — 实板对线, 必要时 ST7102 寄存器调
 
 ## 参考
 
 - [ESP32-P4 技术参考手册](https://www.espressif.com/sites/default/files/documentation/esp32-p4_technical_reference_manual_en.pdf)
-- [esp-webrtc-solution](https://github.com/espressif/esp-webrtc-solution)
-- [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32)
+- [`../docs/webrtc-bringup.md`](../docs/webrtc-bringup.md) — WebRTC 板到后验证
+- [`../hardware/final-pinmap.md`](../hardware/final-pinmap.md) — 引脚分配

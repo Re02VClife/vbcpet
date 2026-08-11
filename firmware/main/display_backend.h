@@ -11,14 +11,19 @@
 extern "C" {
 #endif
 
-/* ── 显示参数 (各后端定义) ── */
+/* ── 显示参数 (Kconfig 定义, 各后端共用) ── */
 #ifndef LCD_W
-#define LCD_W  240
+#define LCD_W  CONFIG_VBCPET_DISPLAY_W
 #endif
 #ifndef LCD_H
-#define LCD_H  320
+#define LCD_H  CONFIG_VBCPET_DISPLAY_H
 #endif
-#define BUF_SIZE  (LCD_W * LCD_H * 2)  /* RGB565 假设 */
+#ifdef CONFIG_VBCPET_DISPLAY_FORMAT_RGB888
+#define DISPLAY_PIXEL_BYTES  3
+#else
+#define DISPLAY_PIXEL_BYTES  2
+#endif
+#define BUF_SIZE  (LCD_W * LCD_H * DISPLAY_PIXEL_BYTES)
 
 /* ── 后端必须实现的函数 ── */
 
@@ -35,6 +40,9 @@ void display_backend_flush(const uint16_t *fb);
 
 /** 获取面板句柄 (供 text_render 等直接 draw_bitmap)。 */
 esp_lcd_panel_handle_t display_backend_get_panel(void);
+
+/** 设置背光亮度 0-100 (SPI 后端无背光时为 no-op)。 */
+void display_backend_set_brightness(int percent);
 
 #ifdef __cplusplus
 }

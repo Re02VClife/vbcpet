@@ -87,7 +87,7 @@ def send_frame(ser: serial.Serial, jpeg_data: bytes) -> None:
 
 async def stream_loop(ser: serial.Serial, http_port: int, html_path: str,
                       width: int, height: int, fps: int, quality: int) -> None:
-    url = f"http://127.0.0.1:{http_port}/{html_path}"
+    url = f"http://127.0.0.1:{http_port}/{html_path}?res={width}x{height}"
     log.info("加载: %s (%dx%d) fps=%d quality=%d", url, width, height, fps, quality)
 
     pw, browser, page = await _start_browser(width, height)
@@ -155,8 +155,8 @@ def main() -> None:
     ap.add_argument("--baud", type=int, default=2000000, help="波特率")
     ap.add_argument("--fps", type=int, default=12, help="目标帧率")
     ap.add_argument("--quality", type=int, default=55, help="JPEG 质量 1-100")
-    ap.add_argument("--width", type=int, default=320, help="截图宽度")
-    ap.add_argument("--height", type=int, default=240, help="截图高度")
+    ap.add_argument("--width", type=int, default=480, help="截图宽度 (默认最终板 480×800; 开发板用 240)")
+    ap.add_argument("--height", type=int, default=800, help="截图高度 (默认最终板 800; 开发板用 320)")
     ap.add_argument("--live2d-dir", default="live2d", help="Live2D 渲染根目录")
     ap.add_argument("--html", default="render.html", help="HTML 文件名")
     ap.add_argument("-v", "--verbose", action="store_true")

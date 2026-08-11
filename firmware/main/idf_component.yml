@@ -1,6 +1,7 @@
 ## vbcpet firmware dependencies (ESP Component Registry)
 dependencies:
   espressif/esp_codec_dev: ">=1.2.0"    # ES8311/ES7210 audio codec HAL (xiaozhi 同款)
+  kevincoooool/esp_lcd_st7102: "^1.0.0" # ST7102 MIPI-DSI/RGB LCD 驱动 (社区, 4.3" 480×800)
   ## 后续按需添加:
   # espressif/esp_webrtc: ">=1.2.0"     # WebRTC transport (M2)
   # espressif/esp_xiaozhi: ">=0.1.0"    # xiaozhi 全栈（fork 时可开）

@@ -48,9 +48,11 @@ def _start_http(root: str) -> tuple[HTTPServer, int]:
 
 
 class UnifiedBridge:
-    def __init__(self, port: str = "COM16", baud: int = 2_000_000, jpeg_quality: int = 80):
+    def __init__(self, port: str = "COM16", baud: int = 2_000_000, jpeg_quality: int = 80,
+                 res: str = "480x800"):
         self.ser = serial.Serial(port, baud, timeout=0.05, write_timeout=3)
         self.jpeg_quality = jpeg_quality
+        self.res = res          # 画布分辨率 "WxH" (默认最终板 480×800; 开发板用 240x320)
         self._seq = count(1)
         self._driver: ClaudeSdkDriver | None = None
         self._pending_perm: PermissionRequest | None = None
@@ -322,9 +324,11 @@ class UnifiedBridge:
         self._browser = await pw.chromium.launch(
             channel='msedge', headless=True,
             args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader'])
+        w, h = (int(x) for x in self.res.lower().split("x")[:2])
         self._page = await self._browser.new_page()
-        await self._page.set_viewport_size({"width": 240, "height": 320})
-        await self._page.goto(f"http://127.0.0.1:{port}/render.html", wait_until='domcontentloaded')
+        await self._page.set_viewport_size({"width": w, "height": h})
+        await self._page.goto(f"http://127.0.0.1:{port}/render.html?res={self.res}",
+                              wait_until='domcontentloaded')
 
         # 等 Live2D 模型加载完成
         for _ in range(30):
@@ -378,6 +382,8 @@ if __name__ == "__main__":
     ap.add_argument("--port", default="COM16")
     ap.add_argument("--baud", type=int, default=2_000_000)
     ap.add_argument("--quality", type=int, default=80)
+    ap.add_argument("--res", default="480x800",
+                    help="画布分辨率 WxH (默认最终板 480x800; 开发板 WT9932P4 用 240x320)")
     args = ap.parse_args()
-    bridge = UnifiedBridge(port=args.port, baud=args.baud, jpeg_quality=args.quality)
+    bridge = UnifiedBridge(port=args.port, baud=args.baud, jpeg_quality=args.quality, res=args.res)
     asyncio.run(bridge.run())

@@ -10,12 +10,20 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "driver/jpeg_decode.h"
 
 static const char *TAG = "disp";
 
 static jpeg_decoder_handle_t g_jpeg = NULL;
 static uint8_t *g_fb = NULL;  /* 单帧缓冲 */
+
+/* JPEG 解码输出格式 = 帧缓冲格式 (Kconfig) */
+#ifdef CONFIG_VBCPET_DISPLAY_FORMAT_RGB888
+#define JPEG_DEC_OUT_FMT  JPEG_DECODE_OUT_FORMAT_RGB888
+#else
+#define JPEG_DEC_OUT_FMT  JPEG_DECODE_OUT_FORMAT_RGB565
+#endif
 
 int display_pipeline_init(void)
 {
@@ -28,13 +36,16 @@ int display_pipeline_init(void)
         ESP_LOGE(TAG, "JPEG decoder fail"); return -1;
     }
 
+    /* 帧缓冲: 480×800 RGB565 = 768KB, 优先 PSRAM (内部 SRAM 放不下) */
     jpeg_decode_memory_alloc_cfg_t mem_cfg = {
         .buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER,
     };
     size_t actual = 0;
     g_fb = jpeg_alloc_decoder_mem(BUF_SIZE, &mem_cfg, &actual);
+    if (!g_fb) g_fb = heap_caps_malloc(BUF_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!g_fb) g_fb = heap_caps_malloc(BUF_SIZE, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
-    if (!g_fb) { ESP_LOGE(TAG, "FB alloc fail"); return -1; }
+    if (!g_fb) { ESP_LOGE(TAG, "FB alloc fail (%d B)", (int)BUF_SIZE); return -1; }
+    ESP_LOGI(TAG, "FB allocated: %d B", (int)BUF_SIZE);
 
     ESP_LOGI(TAG, "Display pipeline ready (single buffer)");
     return 0;
@@ -57,7 +68,7 @@ int display_pipeline_feed_jpeg(const uint8_t *data, size_t len)
         return -1;
 
     jpeg_decode_cfg_t dec_cfg = {
-        .output_format = JPEG_DECODE_OUT_FORMAT_RGB565,
+        .output_format = JPEG_DEC_OUT_FMT,
         .rgb_order     = JPEG_DEC_RGB_ELEMENT_ORDER_RGB,
         .conv_std      = JPEG_YUV_RGB_CONV_STD_BT601,
     };
@@ -95,7 +106,7 @@ void display_pipeline_draw_boot_screen(const uint8_t *jpeg_data, size_t len)
         return;
 
     jpeg_decode_cfg_t dec_cfg = {
-        .output_format = JPEG_DECODE_OUT_FORMAT_RGB565,
+        .output_format = JPEG_DEC_OUT_FMT,
         .rgb_order     = JPEG_DEC_RGB_ELEMENT_ORDER_RGB,
         .conv_std      = JPEG_YUV_RGB_CONV_STD_BT601,
     };
