@@ -19,12 +19,12 @@
 
 | 模组 Pin | 信号 | 去向 |
 |----------|------|------|
-| 34 | DSI_D1P | → 屏 FPC-14 |
-| 35 | DSI_D1N | → 屏 FPC-15 |
-| 36 | DSI_CLKN | → 屏 FPC-12 |
-| 37 | DSI_CLKP | → 屏 FPC-11 |
-| 38 | DSI_D0P | → 屏 FPC-17 |
-| 39 | DSI_D0N | → 屏 FPC-18 |
+| 34 | DSI_D1P | → 屏 FPC-17 |
+| 35 | DSI_D1N | → 屏 FPC-16 |
+| 36 | DSI_CLKN | → 屏 FPC-19 |
+| 37 | DSI_CLKP | → 屏 FPC-20 |
+| 38 | DSI_D0P | → 屏 FPC-14 |
+| 39 | DSI_D0N | → 屏 FPC-13 |
 
 ### I²C0 共享总线
 
@@ -126,11 +126,11 @@
 
 | 模组 Pin | 信号 | 备注 |
 |----------|------|------|
-| 2 | LAN_OUT | → IPEX1 天线座 |
+| 2 | LAN_OUT | 模组自带 IPEX 天线座 (2026-08-05: 不再加板上 U4, M1:2 留空) |
 | 4,5 | C6_U0RXD/TXD | C6 调试 (预留测试点) |
 | 6-14 | C6_IO4-9,13-15 | 闲置扩展 |
 
-### 外设拓展 (2026-08-03) — 详见 [expansion.md](expansion.md)
+### 外设拓展 (2026-08-04) — 详见 [expansion.md](expansion.md)
 
 | 模组 Pin | GPIO | 功能 |
 |----------|------|------|
@@ -150,7 +150,11 @@
 | 75 | GPIO47 | MPU_INT (六轴中断) |
 | 53 | GPIO26 | USB_DM (USB-A 外设口 D-, OTG_FS) |
 | 54 | GPIO27 | USB_DP (USB-A 外设口 D+, OTG_FS) |
-| 23/30 | GPIO8/21 | I2C 总线新增: OV5640 (0x3C) + MPU-6500 (0x68) |
+| 55 | GPIO28 | SERVO3 (备用舵机 U9; 机械臂已改走 USB, 释放) |
+| 56 | GPIO29 | SERVO4 (备用舵机 U11; 机械臂已改走 USB, 释放) |
+| 23/30 | GPIO8/21 | I2C 总线新增: OV5640 (0x3C) + MPU-6500 (0x68) + (可选)MAX17048 |
+
+> 摄像头电源 (2026-08-04 定案 v2): 模块 OV5640 **24pin** 无板载稳压, 需 LDO1 **ME6211A28** (2.8V→DOVDD/AVDD/AF-VCC, 低压差必须) + LDO2 **AMS1117-1.5** (1.5V→DVDD) + FB1/FB2 磁珠, 从 +3V3 取电。AGND/AF-GND 就近接 GND 平面。详见 [expansion.md](expansion.md) 三节。
 
 ---
 

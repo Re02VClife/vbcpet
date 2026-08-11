@@ -1,5 +1,7 @@
 # 模块化设计方案
 
+> ⚠️ **部分过时 (2026-08-11)**: 本文为方案定稿记录。**接线表部分值已过时**（MP2315 FB 分压 100k/22k → **40.2k/12.7k**、EN 接 **+5V** 而非 VBUS、MT3608 SW 输出为 **LED_A** 而非 +3V3、供电拓扑已加 **IP5306 电池**）。**以 [power-tree.md](power-tree.md) + [schematic-design.md](schematic/schematic-design.md) + EDA 工程网表为准**。
+
 > 日期: 2026-07-30 | 版本: v1.0
 
 ## 原则
@@ -55,6 +57,17 @@
 
 **主板 BOM: 39 行** (含外购模块 5 行)
 
+## 外设拓展 (2026-08-04) — 详见 [expansion.md](expansion.md)
+
+| 类别 | 元件 | 说明 |
+|------|------|------|
+| 电池+充电 | IP5306 + L3(1µH) + BAT1 + C_BAT | VBUS 来源改为 IP5306 VOUT, 1S LiPo 兜底 |
+| 摄像头 | J_CAM 24pin FPC + U_CAM OV5640 + LDO1(2.8V)/LDO2(1.5V) + FB1/FB2 | 无板载稳压, 2 LDO 供电 |
+| 机械臂 | 无 (走 USB-A 口 + 控制板) | 控制板独立供电, 零新增元件 |
+| 可选 | MAX17048 电量计 / IP5306 LED×3 | 电量精确读取 / 免软件显示 |
+
+> 拓展方案设计见 [expansion.md](expansion.md); 原理图改动步骤见 [schematic/expansion-modifications.md](schematic/expansion-modifications.md)。
+
 ## 系统框图
 
 ```
@@ -87,14 +100,14 @@
 
 ### 电源 (板上)
 
-| MP2315 Buck | 连 |
+| MP2315 Buck | 连 (2026-08-11 修正) |
 |------------|-----|
-| Pin1 EN | ← VBUS |
-| Pin2 VIN | ← VBUS (4.5-24V) |
-| Pin3 SW | → L1(4.7µH) → +3V3 |
+| Pin1 EN | ← **+5V** (IP5306 VOUT；勿接 VBUS_IN，否则电池模式断电) |
+| Pin2 VIN | ← +5V (IP5306 VOUT) |
+| Pin3 SW | → L2(4.7µH) → +3V3 |
 | Pin4 GND | → GND |
-| Pin5 FB | → 100k→+3V3 + 22k→GND |
-| Pin6 BST | → 100nF → SW |
+| Pin5 FB | → **40.2k**→+3V3 + **12.7k**→GND (Vout=3.33V) |
+| Pin6 BST | → 100nF + 20Ω → SW |
 | Pin7 SS | NC |
 | Pin8 PG | NC |
 | C4 10µF | VIN→GND |
@@ -102,7 +115,7 @@
 
 | MT3608 Boost | 连 |
 |-------------|-----|
-| Pin1 SW | → L2(10µH) → +3V3 |
+| Pin1 SW | → L3(10µH) → D2(SS14) → **LED_A** |
 | Pin2 GND | → GND |
 | Pin3 FB | → R5(15Ω) → GND |
 | Pin4 EN | ← BL_PWM (GPIO48) |
@@ -228,7 +241,7 @@ USB_DM ── M1:48 ── USB1 D-
 USB_DP ── M1:49 ── USB1 D+
 USB_DM2 ─ M1:53(GPIO26) ── USB-A D- (FS 外设口)
 USB_DP2 ─ M1:54(GPIO27) ── USB-A D+ (FS 外设口)
-LAN_OUT ─ M1:2 ── IPEX1天线
+LAN_OUT ─ M1:2 ── 模组自带 IPEX 天线座 (U4 已删, 2026-08-05)
 
 GPIO5 ─── M1:20 ── 悬空 (无MCLK)
 ```
