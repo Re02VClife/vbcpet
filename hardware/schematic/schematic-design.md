@@ -1,6 +1,10 @@
 # 原理图设计文档 — vbcpet 桌宠主板
 
-> 版本: v0.7 | 日期: 2026-08-03 | 主控: ESP32-P4C6-Core
+> ⚠️ **已过时 (2026-08-11)**: 本文为基础 5 页设计的**早期记录**。设计已演进并打样，**位号已重排**（如 U7/U9/U12/U16 等已变更）、供电架构已加入 IP5306 电池（VBUS_IN/+5V/BAT+）、FB 分压已改为 40.2k/12.7k。
+> **当前网表为准**：嘉立创 EDA 工程 `../../JLC/ProPrj_桌面开发助手_2026-08-11.epro2` + [expansion-modifications.md](expansion-modifications.md) + [../power-tree.md](../power-tree.md)。
+
+> 历史版本: v0.7 | 日期: 2026-08-03 | 主控: ESP32-P4C6-Core
+> 外设拓展 (电池/视觉回归/机械臂) 的改动方案: [expansion-modifications.md](expansion-modifications.md) — 本文件为基础 5 页设计。
 
 ## Sheet 规划
 
@@ -162,20 +166,21 @@ GPIO5(20)=释放(无需MCLK)
 
 | Pin | 网络 |
 |-----|------|
-| 1-2 | LED_A |
-| 4-5 | LEDK->R5->GND |
-| 11,12 | MIPI_CP/CN |
-| 14,15 | MIPI_D1P/N |
-| 17,18 | MIPI_D0P/N |
-| 21 | LCD_RST |
-| 22-23 | +3V3 (VDD, 手册 3.0~3.6V typ 3.3V 确认) |
-| 25 | I2C_SCL (3.3V直连; 触摸 I2C 标称 1.8V 电平) |
-| 26 | I2C_SDA (3.3V直连; 同上) |
-| 27 | TP_RST (GPIO9, 3.3V直连) |
-| 28 | TP_INT (GPIO10, 3.3V直连) |
-| 30 | +3V3 (TP_VDD, 手册确认) |
-| 3,6,8,9,20,24 | NC |
-| 7,10,13,16,19,29 | GND |
+| 29,30 | LED_A |
+| 26,27 | LEDK->R5->GND |
+| 13,14 | MIPI_D0N/P |
+| 16,17 | MIPI_D1N/P |
+| 19,20 | MIPI_CN/CP |
+| 10 | LCD_RST |
+| 1,8,9 | +3V3 (VDD, 手册 3.0~3.6V typ 3.3V 确认) |
+| 5 | I2C_SDA (3.3V直连; 触摸 I2C 标称 1.8V 电平) |
+| 6 | I2C_SCL (3.3V直连; 同上) |
+| 4 | TP_RST (GPIO9, 3.3V直连) |
+| 3 | TP_INT (GPIO10, 3.3V直连) |
+| 7,11,22,23,25,28 | NC |
+| 2,12,15,18,21,24 | GND |
+
+> 2026-08-05 同步: 上表按当前网表 (08-05) 对实物屏重新对线后的引脚表; 08-03 旧引脚表 (LED 1/2/4/5, CLK 11/12, D1 14/15, D0 17/18, LCD_RST 21, 3V3 22/23, I2C 25/26, TP 27/28) 已废弃。
 
 ---
 

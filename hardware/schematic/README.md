@@ -1,11 +1,13 @@
 # 原理图工程 — 嘉立创 EDA 专业版
 
-> 状态: 设计文档就绪，待在 EDA 中绘制
+> **状态 (2026-08-11)**: ✅ 原理图已绘制完成（5 页 + 外设拓展实装），网表复核通过，**已随打样定稿**。当前工程：`../../JLC/ProPrj_桌面开发助手_2026-08-11.epro2`（本地 gitignore）。
+> 历史过程文档：[schematic-design.md](schematic-design.md)（基础 5 页设计，位号为重排前）+ [expansion-modifications.md](expansion-modifications.md)（外设拓展改动，已实装）+ [connection-fix.md](connection-fix.md)（断线修复）。
+> ⚠️ **位号已重排**：早期文档里的 U7(MP2315)/U9(MT3608)/U12(功放)/U16(NFC) 等位号在当前网表中已变更，**以 EDA 工程网表为准**。
 
 ## 前置准备
 
 1. 安装 [嘉立创 EDA 专业版](https://pro.lceda.cn/) (桌面版)
-2. 新建工程 `vbcpet-board`
+2. 新建工程 `vbcpet-board`（现为 `桌面开发助手`）
 3. 创建 5 页原理图 Sheet
 
 ## Sheet 规划
@@ -18,13 +20,13 @@
 | 04 | 音频 | MAX98357A + ZTS6672 x2 + 喇叭 |
 | 05 | I/O | 4 凯华轴座 + SK6812 3215 ×4 + NT3H2111 NFC |
 
+> **外设拓展 (2026-08-04)**: Sheet 01 增 IP5306+电池, Sheet 05 增摄像头 FPC/雷达/机械臂 — 改动步骤见 [expansion-modifications.md](expansion-modifications.md)。
+
 ## 绘制步骤
 
 ### 1. 导入 BOM
 
-`bom-lcsc.csv` 包含所有元件和立创商城 C 编号。在嘉立创 EDA 中：
-- 工具 → 导入 BOM → 选择 `bom-lcsc.csv`
-- 每个元件自动匹配封装和商城编号
+> ⚠️ 旧的 `bom-lcsc.csv`（外设拓展前，含错误位号/错误分压值）已删除。当前 BOM 以 **嘉立创 EDA 工程** 为准：`设计 → 导出 BOM` 自动生成含 LCSC 编号的清单。
 
 ### 2. 按 Sheet 绘制
 
@@ -50,6 +52,7 @@
 - 运行 **DRC** (设计规则检查)
 - 对照 [final-pinmap.md](../final-pinmap.md) 验证引脚分配
 - 导出 BOM 与 [`bom.md`](../bom.md) 交叉核对
+- 用 [`tools/schematic_review.py`](../../tools/schematic_review.py) 跑网表自动审查
 
 ## 关键布线约束 (Layout 时注意)
 
@@ -69,8 +72,9 @@
 
 | 文件 | 说明 |
 |------|------|
-| [schematic-design.md](schematic-design.md) | 完整设计文档 (每页所有连接) |
-| [bom-lcsc.csv](bom-lcsc.csv) | 立创商城 BOM (可导入 EDA) |
+| [schematic-design.md](schematic-design.md) | 基础 5 页设计文档（位号重排前，已过时） |
+| [expansion-modifications.md](expansion-modifications.md) | 外设拓展改动方案（已实装） |
+| [connection-fix.md](connection-fix.md) | 断线修复记录 |
 | [../bom.md](../bom.md) | BOM 总表 |
 | [../final-pinmap.md](../final-pinmap.md) | 最终板引脚分配 |
 | [../power-tree.md](../power-tree.md) | 电源树 |
