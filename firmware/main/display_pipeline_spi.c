@@ -105,3 +105,9 @@ esp_lcd_panel_handle_t display_backend_get_panel(void)
 {
     return g_panel;
 }
+
+/* SPI 开发板无独立背光引脚 — no-op */
+void display_backend_set_brightness(int percent)
+{
+    (void)percent;
+}

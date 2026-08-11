@@ -6,12 +6,35 @@ menu "vbcpet Display"
         help
             Select the display hardware backend.
             SPI = ST7789V 240×320 (WT9932P4-TINY)
-            DSI = MIPI DSI LCD (鱼鹰 ESP32-P4C6-Core)
+            DSI = MIPI DSI LCD (鱼鹰 ESP32-P4C6-Core, 480×800 ST7102)
 
         config DISPLAY_BACKEND_SPI
             bool "SPI (ST7789V 240×320)"
         config DISPLAY_BACKEND_DSI
             bool "MIPI DSI (480×800)"
+    endchoice
+
+    config VBCPET_DISPLAY_W
+        int "Display width (px)"
+        default 480 if DISPLAY_BACKEND_DSI
+        default 240
+
+    config VBCPET_DISPLAY_H
+        int "Display height (px)"
+        default 800 if DISPLAY_BACKEND_DSI
+        default 320
+
+    choice VBCPET_DISPLAY_FORMAT
+        prompt "Frame buffer pixel format (PPA JPEG decode output)"
+        default VBCPET_DISPLAY_FORMAT_RGB565
+        help
+            RGB565 = 16bpp, 480×800 → 768KB (较小, SPI 直刷)
+            RGB888 = 24bpp, 480×800 → 1.15MB (部分 MIPI 面板需要)
+
+        config VBCPET_DISPLAY_FORMAT_RGB565
+            bool "RGB565 (16bpp)"
+        config VBCPET_DISPLAY_FORMAT_RGB888
+            bool "RGB888 (24bpp)"
     endchoice
 
 endmenu

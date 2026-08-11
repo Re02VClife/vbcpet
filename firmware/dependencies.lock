@@ -13,8 +13,19 @@ dependencies:
     source:
       type: idf
     version: 5.5.3
+  kevincoooool/esp_lcd_st7102:
+    component_hash: 6a02b8f8466a559ecb205c878d5bbbf7f11265b93fb4e9aa1d3291b68ac93eb0
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.5'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.3
 direct_dependencies:
 - espressif/esp_codec_dev
-manifest_hash: 0dbe4a4c6100d5560931ceca1a94bcb58b20285acd404a62708660d1119a41ce
+- kevincoooool/esp_lcd_st7102
+manifest_hash: 6b14f48412d6c4ac092e54a6258ccb809298d520b259eda7f466b95f5d4e5c84
 target: esp32p4
 version: 2.0.0

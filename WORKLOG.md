@@ -532,3 +532,265 @@ pdftotext 成功提取屏手册全文, 确认背光 **8 LED 4S2P**, IF=20×2=40m
 - ✅ 网表实时解析 + 自动审查工具就绪
 - ✅ 文档同步: PROGRESS / WORKLOG / expansion / final-pinmap / BOM
 - 🔧 PCB 布局; 摄像头待 MIPI 模块 pinout
+
+## 2026-08-04 (周二)
+
+### VS Code 顶栏主题 (DeepSeek 深蓝)
+
+- 项目级标题栏改为 DeepSeek 深蓝 (#4D6BFE): [.vscode/settings.json](.vscode/settings.json) `workbench.colorCustomizations`
+- 仅本工作区生效, 不影响其他项目
+
+### 无线充电 & 蓝牙评估 (两项否决)
+
+- **NFC 无线充电**: NT3H2111 无 Qi 充电能力, 仅毫瓦级能量采集 (VOUT) → 不做
+- **蓝牙音频**: C6 仅 BLE 5.0 (无经典蓝牙 → 无 A2DP/HFP), 耳机双连桌宠+终端不可行
+- **定案**: 不加蓝牙硬件, 音频走 **WiFi 转发** (P4→C6→TCP/UDP→终端) 由终端混音播放 (含蓝牙耳机), 零硬件成本
+
+### 外设拓展方案 — 4 项
+
+| 拓展 | 方案 | 资源 |
+|------|------|------|
+| 电池+充电 | **IP5306** (充电2.1A/升压2.4A/1µH) + **1S LiPo 3.7V** (4.2V, 保护板) | VBUS 轨改由 IP5306 VOUT 供 |
+| 毫米波雷达 | **HLK-LD2410B** (人体存在/接近) | UART2 GPIO30/31 + OUT GPIO32 |
+| 视觉回归 | **OV5640** MIPI 30pin + P4 **NNA** (人脸/手势识别) | CSI 41-46 + GPIO5/12/13 |
+| 机械臂 | **LeRobot SO101** SCServo 总线 (1Mbaud UART) | UART1 GPIO28/29, 外部 5V 独立供电 |
+
+- 协议参考 desk-robot: SCServo 二进制协议, 4096 步=360°, JOINT_LIMITS/HOME_STEPS
+- 产出: [expansion.md](hardware/expansion.md) v1.3 (16 节) + [final-pinmap.md](hardware/final-pinmap.md) (GPIO28-32 新增) + [expansion-modifications.md](hardware/schematic/expansion-modifications.md) v1.0 (原理图修改方案, 改电源→摄像头→毫米波→机械臂顺序)
+
+### 摄像头方案对比定案 → OV5640
+
+对比 OV3660 / GC2093 / OV5647 / IMX219 / Zero-W 22pin:
+
+| 结论 | 理由 |
+|------|------|
+| P4 ISP 上限 1080p | 高像素传感器全浪费, IMX219 8MP 无意义 |
+| **IMX219 / GC2093 不在官方 esp_cam_sensor 支持表** | 需自移植驱动, 打样板风险高 → 弃 |
+| OV5647 官方支持但仅 RAW | 无硬件 JPEG, 拍照费 CPU → 弃 |
+| **OV5640 官方支持 (MIPI, YUV422) + 模块生态成熟** | ✅ 定案 |
+
+### 摄像头规格书定案 (FYRK3399-OV5640-100FPC, 仁恒影像)
+
+- 单页矢量 PDF 无文本层, 用 OCR 提取 (30pin 引脚表由用户核对提供)
+- 传感器 OV5640 5MP, 自动对焦 (AFVDD 存在), 4P+650IR 镜头 (F/2.6, EFL 3.29mm, 畸变<1%)
+- FPC 30pin 0.5mm 长 100mm, 双面电磁膜接地, 180° 弯折
+- **⚠️ 无板载稳压, 4 路电源外供**: DOVDD/AVDD/AFVDD **2.8V** + DVDD **1.5V**
+- **电源方案更新**: 原"3V3 直供 or 1.8V LDO"作废 → 新增 LDO1 ME6211A28 (2.8V) + LDO2 ME6211A15 (1.5V) + FB1/FB2 磁珠
+- **引脚表核对**: MIPI lane0/lane1/时钟与 P4 CSI **1:1 直连零交叉**, I2C/控制脚全部对上, GPIO 分配零改动
+- **方案变更 (v2)**: 摄像头改 **OV5640 MIPI 24pin** 模块 — 连接器 30P→24P, 电源轨不变 (DOVDD/AVDD/AF-VCC 2.8V + DVDD 1.5V), LDO 方案沿用; 新增 STROBE (闪光, 可选 NC), 地分 AGND/GND/AF-GND (单点接平面), PWDNB 极性待确认
+- 文档更新: expansion.md (接线表+电源+待核实清单), expansion-modifications.md (改动总览/BOM/网络表), bom/power-tree/final-pinmap 同步 24pin
+
+### 当前状态
+
+- ✅ VS Code 顶栏主题 (DeepSeek 深蓝)
+- ✅ 无线充电/蓝牙两项否决, WiFi 音频转发定案
+- ✅ 外设拓展 4 项方案定稿 (电池/毫米波/视觉/机械臂), 原理图修改方案就绪
+- ✅ 摄像头 OV5640 + 规格书定案 (无板载稳压 → 2 LDO + 2 磁珠)
+- 🔧 待用户按 expansion-modifications.md 改图, 改完跑网表复查
+
+## 2026-08-05 (周三)
+
+### 摄像头 24pin 定案 + 网表审查
+
+- 模块参数补充: OV5640 24pin, 镜头 4P+IR (1/4" F2.6 EFL3.2 畸变<1%), DVDD 1.5V / AVDD / DOVDD 2.8V → LDO 方案吻合, 零改动
+- DRC 审查: LDO2 确认 AMS1117-1.5 (ME6211A15 找不到); **2.8V 必须 ME6211A28 低压差** (AMS1117 的 1.0V dropout 扛不动 3.3→2.8V); LOD2.8V GND(pin1)需接、AMS1117 TAB→VOUT 散热
+- 网表 08-05 审查: IP5306/LDO1/LDO2/L3/电池/CN1 已画; 发现并反馈 **3 处**:
+  - 🔴 **IP5306 VIN 接错**: VIN=VOUT=+5V (USB-C VBUS 未拆出 VBUS_IN) → 电池电路短路
+  - 🔴 **CSI 时钟对未接**: M1:43/44 ↔ CN1:16/18 (MCP/MCN) 全是孤立网
+  - 🟡 **MCLK 双网名**: M1:20=CAM_MCLK vs CN1:14=MCLK 未连通
+- 数据 lane / RST / PWDN / I2C / +2V8 / +1.5V / 电池 均已接对 ✅
+
+### 机械臂改走 USB (方案 B)
+
+- 决定: 机械臂 **不再占用 GPIO/UART**, 直接接 **USB-A 口 (FS OTG host)** + SO101 控制板 (独立供电, P4 只发指令)
+- 板上 **零新增元件**: 砍掉 J_ARM / J_EXT5V; GPIO28/29 保持 SERVO3/SERVO4 (U9/U11 备用舵机), 消除 SERVO 冲突
+- 软件: P4 usb_host + CDC-ACM → SO101 控制板协议 (⚠️ 待确认)
+- 文档同步: expansion.md (九节重写/GPIO/待核实), expansion-modifications.md (改动4/BOM/网络), final-pinmap/bom/block-diagram/power-tree
+
+### 电源修复 (MP2315 EN) + 毫米波弃用
+
+- 网表复查: 3 处反馈全部修复 (IP5306 VIN→VBUS_IN、CSI 时钟、MCLK) ✅
+- 新发现 P0: **MP2315 EN (pin6) 误接 VBUS_IN** → 电池模式 Buck 关闭整板断电; 已改回 **+5V** ✅
+- 全板审查通过, 剩余悬空均为有意项 (LAN_OUT 删 U4 后留空 / IP_LED1 / GPIO33)
+- **毫米波弃用** (2026-08-05): LD2410B 方案取消 — 删除 expansion 毫米波节/GPIO30-32/BOM(U_MM/J_MM), 相关文档同步; GPIO30-32 释放为通用空闲脚
+- **U4 删除**: 模组自带天线座, 板载 IPEX 冗余 → LAN_OUT 留空
+
+### 全局深审 + 8 项修复
+
+- 全量网表逐子系统核对, 发现并反馈:
+  - 🔴 **+5V/5V 两个网分裂** (只靠 R4 桥接) → 合并为 +5V
+  - 🟡 **缺失支撑电容**: BAT+ (C_BAT)、VBUS_IN (10µF)、+2V8/+1.5V 输出、舵机 470µF
+  - 🟡 **SD CMD/DAT 无外部上拉** (软项, 可固件内部上拉)
+  - 🟡 AMS1117-1.5 TAB 未接 (散热) / MAX98357A GAIN 悬空 (=12dB)
+- 用户修复全部到位: 5V 合并、C4(VBUS_IN)、C1/C2/C3(BAT+)、C5/C6(+2V8)、C7/C9(+1.5V)、AMS1117 TAB✅
+
+### 位号重排 + 审查工具改造
+
+- 全板**位号重排** (左上→右下): 功放 U12→U4、麦 U3/U5→U5/U6、舵机重排
+- [schematic_review.py](tools/schematic_review.py) 改为**按 part_id + 网络定位** (不再写死位号): 重排后全项通过 ✅
+- 新增审查项: 摄像头座 13 个关键网络、电池 IP5306 连接
+- 发现 LOD2.8V 实为 **XC6206P282MR (150mA)** — 对焦瞬间逼近限流, 已知晓
+
+### PCB 布线指南 v1.1
+
+- [pcb-layout-guide.md](hardware/pcb-layout-guide.md) v1.1: 新增 **MIPI-CSI 差分**、**IP5306 电池路径**、**摄像头 LDO** 布局节
+- 修正: RF (U4 删→模组自带 IPEX)、NFC (匹配元件不接)、MP2315 引脚/阻值、线宽表 (BAT+/+5V ≥1mm)、磁珠例外 (摄像头 FB1/FB2)
+
+### 当前状态
+
+- ✅ 摄像头 24pin 定案 (参数/接线/电源)
+- ✅ 机械臂改 USB + 控制板 (零硬件新增)
+- ✅ 网表全绿 + 位号重排完成, 审查工具与位号解耦
+- ✅ 毫米波弃用, GPIO30-32 释放
+- ✅ 8 项电源/去耦修复到位, PCB 布线指南 v1.1
+- 🔧 待查: SO101 控制板 USB 协议
+- ➡️ 下一步: **PCB 布局**
+
+## 2026-08-06 (周四)
+
+### 屏 FPC 引脚号大修 (DSI 差分走法核对)
+
+- 用户发现布局指南"推荐走法"与实际接线不符 → 逐网表核对:
+  - 08-03→08-05 期间屏 FPC 整片重新对线, 文档仍停在 08-03 旧图
+  - 实际网表: **D0→FPC 13/14, D1→16/17, CLK→19/20** (旧 11/12/14/15/17/18 作废)
+  - 模组 M1 侧 DSI 引脚与 datasheet 一致 ✅ (34=D1P, 36=CLKN, 37=CLKP, 38=D0P)
+- 同步 4 处文档: pcb-layout-guide v1.2、final-pinmap (6 引脚号)、schematic-design (整张 FPC 30pin 表重写)、expansion 两处
+
+### CSI 引脚纠错 + 网表反相发现
+
+- 前一晚误按网表改 expansion 文档的 CSI 引脚号 → 查模组 datasheet 发现**网表反了**
+- datasheet 权威: **41=CSI_D0N, 42=CSI_D0P, 45=CSI_D1N, 46=CSI_D1P**
+- 网表模组符号 D0/D1 两对 **P/N 反接** → 文档改回 datasheet; 网表待用户决策 (改符号 or 固件 lane 极性翻转)
+
+### DSI 差分交叉分析
+
+- 模组顺序 D1/CLK/D0 vs 屏座 D0/D1/CLK → **循环错位, 至少一对必须绕线** (结构性, 非接错)
+- 两类交叉: 对内 P/N 镜像 (D0/D1, 极性翻转或毫米弯, <0.5mm) + 对间 D1↔CLK (C 形绕线, <5mm skew)
+- 模组引脚物理固定不可改 (鱼鹰成品 88pin 邮票孔) → 交叉在布局层绕, 写入指南
+
+### 模组几何 + 扇出确认
+
+- datasheet PDF: **25×25mm, 88 脚周边邮票孔, 焊盘中心距 ~31mil (0.8mm), 间隙 ~10mil**
+- 扇出法: 每脚 4mil 细线垂直扇出 3~5mm → 开阔区汇成差分对; 周边脚无需从焊盘间挤过
+
+### 路由数据审查 (08-06 首版布线)
+
+- 读到用户存盘路由: D1 对 461.0/461.3mil、各 2 过孔、10mil 宽 — 与用户描述一致
+- 已走 11 网 (DSI 全 6 + CSI 的 D0/D1 4 网 + LEDK); **CSI 时钟对 CLKP/CLKN 未走**, USB/电源未走
+- 问题: 全部 MIPI 10mil (默认宽)、**D1/CLK 走上 Inner1 (=GND 平面)**、8 个过孔无 GND 缝合、**未设差分对**
+
+### 100Ω 差分参考值大修正 (核心)
+
+- 官网阻抗计算器 (tools.jlc.com) 实测 JLC04161H-7628: **线宽 8.8mil / 间距 5mil → 100Ω**
+- **旧指南 4.5/8mil 作废** (7628 介质厚 8.28mil, 4.5mil 宽偏到 ~130Ω); pcb-layout-guide → **v1.3**
+- 量用户实际走线: 线宽 10mil ✓接近 8.8, 但 **线距太宽 ~10~29mil** → 差分阻抗 ~110-116Ω 偏高 (目标 100±10%)
+- 建议: 8 对设差分对, MIPI 按 8.8/5mil 走 Top 层, D1/CLK 从 Inner1 撤出
+
+### 差分对清点 + NC 检查
+
+- 整板 **8 对差分**: DSI 3 (100Ω) + CSI 3 (100Ω) + USB 2 (90Ω)
+- NC 网短接 7 脚 (屏 FPC 7/11/22/23/25/28 + 摄像头 CN1:1 STROBE) → 建议 STROBE 单独悬空
+
+### 当前状态
+
+- ✅ 屏 FPC 引脚表全文档对齐 (与网表一致)
+- ✅ 100Ω 差分参考值修正为 8.8/5, 指南 v1.3; 交叉/扇出/几何已写入
+- 🔧 待做: 模组符号 CSI P/N 反相接法 (改符号 or 固件补偿); 用户设差分对 + 按 8.8/5 重走 MIPI + D1/CLK 撤 Inner1
+- ➡️ 下一步: 差分对定义 + MIPI 重走 + 间距验证
+
+## 2026-08-07 (周五)
+
+### 阻抗参考值大修正 (指南 v1.4)
+
+- 官网阻抗计算器实测 **JLC04161H-7628 通用免费款** (L1-L2 单层 7628 8.28mil, 1.1mm core):
+  - **100Ω 差分 = 线宽 7.3mil / 间距 6mil**
+  - **90Ω 差分 = 线宽 9.5mil / 间距 6mil**
+- **08-06 的 8.8/5 作废** (那是 7628B 特殊款, 不适用); pcb-layout-guide → **v1.4**
+
+### 8 差分对重走
+
+- **DSI 3 对 + CSI 3 对**: 7.3mil/6mil, 100Ω
+- **USB 2 对** (USB_DP/DM 调试 + USB_A_DP/DM 外设): 9.5mil/6mil, 90Ω
+- 全部走 Top 层, 无过孔跳层; 对内等长 ≤0.5mm
+- 旧板 (Board1) 差分核实通过
+
+## 2026-08-08 (周六) — 旧板打样前审查 + 元件答疑
+
+### 旧工程 (vbcpet20260721) 审查
+
+- 🔴 **L2 Buck 电感足迹错误**: 4.7µH@2A 功率电感塞不进 0603 焊盘 → 已打板, **bring-up 需飞线** (CD54 大电感焊引线到 0603 盘), 下版改功率电感足迹
+- ⚠️ 旧工程残留 **自动布线 Board2** (PCB3, 全 6mil, 走无效 Inner7/8 层) → **勿打样, 只导出 Board1**
+- SD 卡修正: R8 从串联改 **10k 上拉到 3V3** (pin9=SD_CD), pin6=VSS→GND
+- IP5306 KEY 确认 = GPIO33 (pin60, 与 datasheet 核对)
+
+### 元件答疑 (选型确认)
+
+- **电感电流**: L1(IP5306, 1µH)≥2.5A / Isat≥3A, L2(Buck, 4.7µH)≥2A, L3(Boost, 10µH)≥0.5A; **开关电源电感不可用 50mA 件或直连**
+- **USBLC6-2SC6** 参数确认 (±30kV ESD, 0.8-1pF, Vrwm 5V); 替代料核对通过
+- 差分线宽线距表: MIPI 7.3/6, USB 9.5/6; 对间距 ≥3 倍线宽
+- 去耦电容可换值/电解电容替换原则
+
+### 电源线宽审查 (旧板)
+
+- 主干达标: +5V 40mil, BAT+ 45mil, VBUS_IN 30mil, 3V3 30~60mil
+
+## 2026-08-11 (周二) — 新工程「桌面开发助手」+ 打样
+
+### 新工程审查
+
+- 工程重命名 **桌面开发助手**; **单 PCB 文档** (旧 Board2 已清除)
+- ✅ **L2 足迹修正**: 0603 → **IND-SMD_L7.4-W6.6** 功率电感 (焊盘 98×130mil) — 08-08 的 0603 问题解决
+- ✅ SD 卡: pin6=GND, pin9=SD_CD+R8(10k 上拉) 全对; 显示 FPC / 摄像头 CN1 / M1 67 脚全对上
+- ⚠️ **发现 2 处**:
+  - **D1 (USBLC6) pin5 = VBUS_IN** — 应为 **+5V**: 电池模式 VBUS_IN=0V → USB-A 口 D+/D- 被钳到 ~0.7V, **USB-A 外设口电池模式瘫痪**
+  - **USB_DP/DM (USB-C 调试口) 线宽 7.3/10mil** — 应为 **9.5mil** (90Ω); 7.3 是 MIPI 的 100Ω 宽度
+
+### 电源线宽复审
+
+- 主干全部达标: BAT+ 45mil, VBUS_IN 30mil, +5V 40mil, 3V3 30-60mil
+- ⚠️ LED_A 全网络 10mil (应 ≥11.8), +2V8 大部分 10mil; +5V 有 58mm / 3V3 有 139mm 的 10mil 细段 → 建议加宽
+
+### 打样 + 文档清理
+
+- **已下单嘉立创打样** (2026-08-11)
+- ⚠️ **待核实**: 盘上 08-11 工程网表 D1 pin5 仍=VBUS_IN、USB_DP/DM 仍 7.3/10mil —— 若打样件与此网表一致, 这两点会带到板子上, bring-up 重点验证
+- 文档清理: 删旧网表 .enet×3、升级方案.md×2、bom-lcsc.csv (外设拓展前/位号错)、KiCad pcb/ 占位、旧 epro2×5; 修正 schematic/README + modular-design 接线表 + bom.md CH224K/J2 注释
+
+## 2026-08-11 (周二) — 板到货前固件开发 (最终板 P4C6-Core)
+
+在等板期间并行开发最终板固件,目标焊完当天能用。
+
+### M1 显示重构 + DSI 后端
+
+- **分辨率/格式解耦**: `LCD_W/H/BUF_SIZE` 硬编码 → **Kconfig 化** (`VBCPET_DISPLAY_W/H/FORMAT`); 帧缓冲 480×800 RGB565=768KB → **PSRAM** (`CONFIG_SPIRAM=y`)
+- **DSI 后端实现** (`display_pipeline_dsi.c`): MIPI-DSI 2-lane ST7102 480×800, 用社区组件 **`kevincoooool/esp_lcd_st7102`** (含完整 init 序列 + 480×800 DPI 配置宏); 背光 LEDC PWM GPIO48; LCD_RST GPIO20
+  - 屏手册确认: ST7102 TDDI, 触摸默认 0x55 (与 NFC 冲突→探测); 触摸由 LCD_RST 控制 (勿动 TP_RST)
+  - ⚠️ ST7102 MIPI lane 顺序交叉 (模组 vs FPC) — 板到后对线, 必要时寄存器调
+
+### M2 外设驱动 (全部, 编译验证)
+
+- `board_config.h`: 最终板引脚唯一权威
+- `peripherals/`: **i2c_bus** (共享 I2C GPIO8/21) + **buttons** (GPIO1-4, 消抖+上报 PC) + **sk6812** (RMT WS2812B ×4) + **touch** (ST7123 探测式) + **audio** (MAX98357A TX + ZTS6672×2 RX, I2S0 全双工 48kHz) + **mpu6500** (0x68) + **sd_card** (SDIO 4-bit+FAT) + **servo** (LEDC 50Hz GPIO24/25) + **nfc** (0x55+FD) + **usb_host** (FS OTG `peripheral_map=BIT1`, 枚举检测)
+- 删除过时 `audio_codec.c/.h` (ES7210/ES8311)
+
+### M3 bring-up 框架
+
+- `bringup.c`: UART0 控制台 (`help/list/test <name>/test all/brightness`); 启动逐个初始化外设 (容错)
+- `self_test.c`: 每外设 `xxx_self_test()` 注册, 打印 PASS/FAIL — 焊完逐项跑
+
+### M4 PC host 480×800
+
+- `render.html`: 画布 240×320 → **480×800 可配** (`?res=WxH`), 模型 scale 随分辨率
+- `serial_bridge.py` / `serial_stream.py`: `--res WxH` 参数 (默认 480x800, 开发板 240x320)
+- `transport_usb.c` RX 缓冲 16KB→32KB
+
+### 构建基础设施
+
+- `_idf.py` 包装器: **Git Bash 下 idf.py MSYSTEM 跳过 main 的 workaround** (纯原生 python 剥 MSYSTEM) + 工具链 env (ESP_ROM_ELF_DIR 等)
+- 双板配置: `sdkconfig.defaults` (最终板 DSI+PSRAM) + `sdkconfig.defaults.devboard` (SPI); `_build.bat` / `_build_dev.bat` 独立 build 目录
+- **编译通过**: 最终板 DSI 全量 + 开发板 SPI 双验证
+
+### 文档
+
+- `firmware/README.md` 重写 (实际状态); `docs/webrtc-bringup.md` 新建 (WebRTC 板到后清单); PROGRESS 更新
+- WebRTC: `webrtc_skeleton.c` 未编译骨架 (esp-hosted + esp_webrtc + VPU, 板到后启用)

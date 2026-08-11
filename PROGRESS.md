@@ -1,6 +1,6 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-08-03 | 当前阶段: Phase 1 硬件设计 — 外设拓展实装, 网表审查通过, PCB 布局中
+> 更新: 2026-08-11 | 当前阶段: Phase 2/3 硬件 — **已送打样**; 板到货前固件并行开发 (DSI 后端 + 外设驱动 + 自检框架已完成, 待板 bring-up)
 
 ---
 
@@ -37,6 +37,11 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 | 滚动显示 | ✅ | 自动滚动 + 新消息重置 |
 | 行超时保护 | ✅ | 500ms 行超时自动重置 (防半行数据堆积) |
 | 显示后端抽象 | ✅ | display_backend.h + SPI/DSI 双后端, Kconfig 编译时选择 |
+| **DSI 后端 (最终板)** | ✅ | MIPI-DSI 2-lane ST7102 480×800 (`esp_lcd_st7102`), 背光 PWM GPIO48 |
+| 分辨率/格式解耦 | ✅ | W/H/像素格式 Kconfig 化, 帧缓冲 480×800 RGB565=768KB → PSRAM |
+| **外设驱动 (最终板)** | ✅ 编译验证 | 按键/SK6812/触摸/音频/MPU-6500/SD/舵机/NFC/USB-host — `main/peripherals/` |
+| **bring-up 自检** | ✅ | UART0 控制台 `test <name>/all` + `brightness`; 每外设 `xxx_self_test()` |
+| 板配置 | ✅ | `board_config.h` 最终板引脚唯一权威 |
 
 ### ✅ Live2D 角色系统
 
@@ -66,9 +71,10 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 | BOM | ✅ **全部定稿** | 5/5 ⚠️ 已解决 |
 | 最终板引脚分配 | ✅ | [final-pinmap.md](hardware/final-pinmap.md) — P4C6-Core 88pin 完整分配 |
 | 开发板引脚记录 | ✅ | [devboard-pinmap.md](hardware/devboard-pinmap.md) — WT9932P4-TINY 实际占用 |
-| 原理图 | ✅ **断线已修复** | EasyEDA 网表复核通过, P0/P1 断线全部接好 |
-| 外设拓展 | ✅ **已实装** | USB 外设口 + MPU-6500 + microSD + 舵机×4 已画; 摄像头搁置 → [expansion.md](hardware/expansion.md) |
-| PCB | 🔧 布局中 | 基础布局完成, 待加入外设元件 |
+| 原理图 | ✅ **完成** | EasyEDA 网表复核通过, P0/P1 断线全部接好 |
+| 外设拓展 | ✅ **已实装** | USB 外设口 + MPU-6500 + microSD + 舵机×4 + **IP5306 电池 + OV5640 摄像头** 已画, 网表全绿; 机械臂走 USB-A 口 (控制板独立供电); 毫米波已弃用 → [expansion.md](hardware/expansion.md) |
+| PCB 布局布线 | ✅ **完成** | 8 差分对 (DSI/CSI 7.3mil 100Ω, USB 9.5mil 90Ω)、电源线宽、L2 电感足迹 0603→7.4×6.6mm 修正; 单 PCB 文档无残留 |
+| **打样** | 🔧 **已下单 2026-08-11** | 工程 `JLC/ProPrj_桌面开发助手_2026-08-11.epro2`; ⚠️ 两项疑点待 bring-up 验证 (D1 pin5 / USB_DP-DM 线宽) |
 
 #### 原理图审计 (2026-08-02)
 
@@ -86,6 +92,10 @@ vbcpet 是一个 AI 桌宠硬件项目。架构为 **PC 端渲染 AI/Live2D → 
 - **08-03 外设拓展**: 新增 OV5640 摄像头(MIPI-CSI) + MPU-6500 六轴 + 舵机云台×2 + microSD(SDIO 4-bit) → [expansion.md](hardware/expansion.md)
 - **08-03 实装**: USB 外设口 (USB2/F1/D2) + MPU-6500 (U7) + microSD (TF1) + 舵机×4 (2驱动+2预留) 已画; 功放 U12 全接; **全板网表审查通过** (USB 极性/悬空/元件完整)
 - **08-03 网表工具**: [schematic_snapshot.py](tools/schematic_snapshot.py) 解析 epro2 → 元件+网络; [schematic_review.py](tools/schematic_review.py) 自动审查 (USB 极性/悬空/连接完整性)
+- **08-07 阻抗修正**: JLC04161H-7628 通用免费款 → **100Ω=7.3mil/6mil** (原 8.8/5 是 7628B 特殊款, 作废); 8 差分对重走完成
+- **08-08 旧板审查**: 发现 L2 Buck 电感 **0603 足迹错误** (2A 电感放不下, 需飞线 bring-up); 旧工程残留自动布线 Board2 (废弃, 勿打样)
+- **08-11 新工程打样**: 重命名 `桌面开发助手`; L2 足迹修正为 7.4×6.6mm 功率电感, SD 卡接线修正 (pin6=GND, pin9=SD_CD+R8 上拉), 电源线宽审查 (主干合格, LED_A/+2V8 建议改 12mil); 已送打样
+- **08-11 打样疑点**: ⚠️ 网表里 **D1(USBLC6) pin5=VBUS_IN** 应为 +5V (电池模式会钳死 USB-A 口)、**USB_DP/DM 7.3/10mil** 应为 9.5mil — 若打样件与此网表一致, 这两处会带到板子上, bring-up 验证
 
 ### 🔧 待优化
 
@@ -279,14 +289,16 @@ vbcpet/
 
 | 优先级 | 任务 | 说明 |
 |--------|------|------|
-| **P0** | PCB 布局 | 已画元件转入 PCB, 按 [expansion.md](hardware/expansion.md) |
-| P1 | 摄像头 (搁置) | 待 MIPI 版 OV5640 模块 30pin pinout 确认后再画 |
-| P1 | ERC + BOM 同步 | 位号 U1→U12 变动、SPK 隔直 C3/C4 是否保留、+5V 命名同步 |
-| P1 | ERC + BOM 同步 | 清零孤立网络 (GPIO5 MCLK), 位号 R5/R14、+5V 命名同步 |
-| P1 | 固件引脚适配 | IO15/16/18 → IO21/22/23 |
-| P1 | P4 硬件端到端验证 | serial_bridge.py + 心情表情联动 |
-| P2 | ST7789V 颜色校正 | 软件色表映射 |
-| P2 | 调参工具刷新表情预设 | 用户在 tune_expressions.html 微调后同步到 render.html |
+| **P0** | **等板 + bring-up** | 板到后烧录→分区上电→UART0 控制台 `test all` 逐项自检 (先 3V3/Buck, 再模组/屏/背光, 后外设) |
+| **P0** | **打样疑点验证** | ⚠️ USB-A 口电池模式 (D1 pin5) + USB_DP/DM 差分信号完整性 + ST7102 lane 对线 — 见 README |
+| **P0** | 满分辨率推流实测 | 480×800 JPEG 在最终板实测 fps (目标 ≥8); USB-Serial-JTAG 吞吐; quality/baud 调优 |
+| P1 | 机械臂 USB 协议 | SO101 控制板 USB 协议确认 + P4 usb_host CDC-ACM 数据通路 (当前只到枚举检测) |
+| P1 | 触摸协议确认 | ST7123 实际 I2C 地址 + 寄存器协议 (自检已可探测; 读点函数按实板修正) |
+| P1 | Live2D 480×800 调参 | 模型 scale/位置按新画布微调; 文字 16px 在 4.3" 屏偏小, 考虑 2× 放大 |
+| P1 | P4 硬件端到端验证 | serial_bridge.py (`--res 480x800`) + 心情表情联动 (在最终板) |
+| P2 | WebRTC 接收链路 | 板到后按 [docs/webrtc-bringup.md](docs/webrtc-bringup.md) 启用 esp-hosted + esp_webrtc |
+| P2 | ST7789V 颜色校正 | 软件色表映射 (开发板遗留) |
+| P2 | 下一版修正 | L1 (IP5306) 201610→CD32 提升电流余量; LED_A/+2V8 线宽 10→12mil; D1 pin5→+5V; USB_DP/DM→9.5mil |
 
 ### 预计时间线
 
@@ -295,6 +307,7 @@ vbcpet/
 | Phase 0 Bring-up (推流+显示) | 1-2 周 | ✅ 完成 |
 | Phase 0 Live2D (模型+表情+心情) | 1 周 | ✅ 完成 |
 | BOM 定稿 + 引脚分配 | — | ✅ 完成 (7/28) |
-| Phase 1 原理图 (EasyEDA) | 2-3 周 | 🔧 断线已修复, 外设拓展中 |
-| Phase 2 PCB | 3-4 周 | ⬜ |
-| Phase 3-4 打样+Bring-up | 3-5 周 | ⬜ |
+| Phase 1 原理图 (EasyEDA) | 2-3 周 | ✅ 完成 (外设拓展已实装, 网表全绿) |
+| Phase 2 PCB 布局布线 | 3-4 周 | ✅ 完成 (差分/线宽/足迹审查通过) |
+| Phase 3 打样 | 1-2 周 | 🔧 已下单 2026-08-11 |
+| Phase 4 Bring-up | 3-5 周 | ⬜ 待板到货 |

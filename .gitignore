@@ -9,7 +9,7 @@ desktop.ini
 *.swp
 
 # ── ESP-IDF / firmware ──
-firmware/**/build/
+firmware/**/build*/
 firmware/**/sdkconfig
 firmware/**/sdkconfig.old
 firmware/**/managed_components/

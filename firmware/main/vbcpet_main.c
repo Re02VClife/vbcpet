@@ -15,6 +15,9 @@
 #include "text_render.h"
 #include "esp_timer.h"
 #include "driver/usb_serial_jtag.h"
+#ifdef CONFIG_DISPLAY_BACKEND_DSI
+#include "bringup.h"
+#endif
 
 static const char *TAG = "vbcpet";
 
@@ -36,7 +39,8 @@ void app_main(void)
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase(); nvs_flash_init();
     }
-    transport_t *transport = transport_usb_create(16384, 16384);  /* TX=16KB 防心跳填满 */
+    /* RX 32KB: 480×800 JPEG 每帧 40-80KB, 大缓冲防 USB 丢帧 */
+    transport_t *transport = transport_usb_create(32768, 16384);  /* TX=16KB 防心跳填满 */
     if (!transport) { ESP_LOGE(TAG, "Transport fail"); return; }
     if (display_pipeline_init() != 0) { ESP_LOGE(TAG, "Display fail"); return; }
     display_pipeline_draw_boot_screen(default_jpeg_data, DEFAULT_JPEG_SIZE);
@@ -49,6 +53,13 @@ void app_main(void)
 
     /* 主循环: 底部 3 行文字 + 长文本自动滚动 */
     text_render_init(display_pipeline_get_panel());
+
+#ifdef CONFIG_DISPLAY_BACKEND_DSI
+    /* 最终板: 外设 bring-up + 控制台命令 */
+    bringup_init(transport);
+    bringup_start_console();
+#endif
+
     ESP_LOGI(TAG, "Main loop");
 
     /* 底部文字区域: 全宽, 3 行, scale=1, 底部留 8px 边距 */

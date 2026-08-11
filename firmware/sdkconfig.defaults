@@ -1,4 +1,5 @@
-# vbcpet firmware — ESP32-P4 WT9932P4-TINY Phase 0 bring-up
+# vbcpet firmware — ESP32-P4C6-Core 最终板 (默认构建目标)
+# 开发板 (WT9932P4-TINY) 回归: 用 sdkconfig.defaults.devboard (见 _build_dev.bat)
 # 编译: idf.py set-target esp32p4 && idf.py build
 CONFIG_IDF_TARGET="esp32p4"
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
@@ -10,7 +11,7 @@ CONFIG_ESPTOOLPY_BAUD=2000000
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_UART_NUM=0
 
-# 芯片修订 v1 (匹配物理芯片 v1.3)
+# 芯片修订 v1 (匹配物理芯片; 打样模组实际 rev 待 bring-up 核对, 见 README 打样疑点)
 CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
 CONFIG_ESP32P4_REV_MIN_FULL=1
 CONFIG_ESP_REV_MIN_FULL=1
@@ -22,8 +23,11 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 # 分区表
 CONFIG_PARTITION_TABLE_SINGLE_APP=y
 
-# 显示后端 (SPI ST7789V → WT9932P4-TINY; 将来切换 DSI → 鱼鹰 P4C6)
-CONFIG_DISPLAY_BACKEND_SPI=y
+# PSRAM — 最终板 480×800 RGB565 帧缓冲 768KB 必须 PSRAM
+CONFIG_SPIRAM=y
+
+# 显示后端 (最终板 MIPI-DSI ST7102 480×800)
+CONFIG_DISPLAY_BACKEND_DSI=y
 
 # 日志
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y

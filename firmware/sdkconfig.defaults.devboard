@@ -1,0 +1,5 @@
+# vbcpet firmware — WT9932P4-TINY 开发板配置 (逻辑/传输/文字回归)
+# 覆盖 sdkconfig.defaults 的显示后端为 SPI ST7789V 240×320
+# 构建: idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.devboard" build
+#   (建议直接运行 _build_dev.bat)
+CONFIG_DISPLAY_BACKEND_SPI=y
