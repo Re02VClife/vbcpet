@@ -44,6 +44,11 @@ phone/**/Pods/
 # ── Live2D external repos ──
 live2d/CubismWebSamples/
 
+# ── Live2D 换皮工具产物 (由 Hiyori 贴图派生, 不入库) ──
+live2d/Hiyori.blocks/
+live2d/Hiyori.new/
+live2d/Hiyori/Hiyori.2048.bak/
+
 # ── Claude session files ──
 .claude/
 
