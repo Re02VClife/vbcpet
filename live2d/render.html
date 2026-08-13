@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>vbcpet Live2D</title>
-<style>body{margin:0;background:#111;overflow:hidden}canvas{display:block}</style>
+<style>body{margin:0;background:#111;overflow:hidden}canvas{display:block;background:#335577}</style>
 </head>
 <body>
+<div id="osd" style="position:fixed;top:2px;right:6px;color:#00aaff;font:12px/1.6 monospace;background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:3px;z-index:99;white-space:pre;">soullink: --</div>
+<div id="demoPanel" style="position:fixed;bottom:16px;left:16px;color:#fff;font:13px/1.7 monospace;background:rgba(0,0,0,0.78);padding:8px 12px;border-radius:4px;z-index:99;white-space:pre;display:none;"></div>
 <script src="live2dcubismcore.min.js"></script>
 
 <script type="importmap">
-{"imports":{"pixi.js":"./node_modules/pixi.js/dist/pixi.mjs","@jannchie/pixi-live2d-display":"./node_modules/@jannchie/pixi-live2d-display/dist/cubism4.es.js"}}
+{"imports":{"pixi.js":"./node_modules/pixi.js/dist/pixi.mjs","@jannchie/pixi-live2d-display":"./node_modules/@jannchie/pixi-live2d-display/dist/cubism4.es.js","@soullink-emotion/engine":"./node_modules/@soullink-emotion/engine/dist/index.js"}}
 </script>
 
 <script>window.process={env:{}};</script>
@@ -104,9 +106,11 @@ window.playMotion=function(n){
   if(window._model)try{window._model.motion(n);console.log('motion:',n);return true}catch(e){console.error('motion err:',e);return false}
   console.log('motion stub:',n);return false;
 };
-/* 直接设表情参数 (PC bridge 调用) */
+/* 直接设单个模型参数 (PC bridge 调用) */
 window.setExpression=function(n,v){
-  console.log('setExpression stub (use applyEmotion):',n,v);return false;
+  var m=window._model;
+  if(m){try{m.setParameterValue(n,v);console.log('param:',n,'=',v);return true}catch(e){console.error('param err:',e);return false}}
+  console.log('param stub:',n,v);return false;
 };
 /* ── 心情持续影响系统 v3 (动作队列) ──
  * 保留原生眼眨 + 自然运动
@@ -129,6 +133,7 @@ window._moodTransitionTimer = null;
  * 表情参数直接控制 */
 window._motionLoopTimer = null;
 window._origStartRandomMotion = null;
+window._motionQueueEnabled = true;  /* engine 就绪后由 module 关闭 → engine 全权驱动参数 */
 
 /* 直接应用 _moodParams 到模型参数 */
 window._applyMoodParamsToModel = function() {
@@ -141,6 +146,7 @@ window._applyMoodParamsToModel = function() {
 
 /* 动作队列循环: idle → 表情 → idle → 表情 → ... */
 window._motionQueueLoop = function() {
+  if (window._motionQueueEnabled === false) return;  /* engine 全权驱动时停用 */
   var m = window._model;
   if (!m) return;
   var im = m.internalModel;
@@ -159,8 +165,7 @@ window._motionQueueLoop = function() {
     try {
       if (im2.motionManager.isFinished()) {
         clearInterval(checkInterval);
-        // 3. 动作结束 → 应用心情表情，暂停 2.5s
-        window._applyMoodParamsToModel();
+        // 3. 动作结束 → 暂停 2.5s (表情/微动参数由 soullink engine 每帧驱动)
         if (window._motionLoopTimer) clearTimeout(window._motionLoopTimer);
         window._motionLoopTimer = setTimeout(function() {
           window._motionQueueLoop();  // 4. 循环
@@ -193,23 +198,75 @@ window._transitionMoodParams = function(target, duration) {
   }, 16);
 };
 
-/* applyEmotion: 平滑更新 _moodParams → 应用到模型 */
+/* ── soullink engine 触发 (VAD/FACS 驱动) ── */
+window._slGetVAD = function(emotion, variant) {
+  var SL = window._SL;
+  if (!SL) return null;
+  try { return SL.getVADPreset(emotion, variant); } catch(e) { return null; }
+};
+window._slTrigger = function(intent, vadTarget) {
+  var r = window._slRuntime;
+  if (!r) return false;
+  var now = (performance.now() - (window._slStartedAt || 0)) / 1000;
+  try {
+    r.triggerIntent(intent, now, vadTarget ? { vadTarget: vadTarget } : undefined);
+    return true;
+  } catch(e) { console.warn('soullink trigger err:', e.message); return false; }
+};
+
+/* applyEmotion: soullink engine 驱动 (VAD/FACS); engine 未就绪时回退旧参数表 */
 window.applyEmotion = function(name, duration) {
   duration = duration || 800;
   var model = window._model;
   if (!model) return false;
+  if (window._slRuntime) {
+    var vad = window._slGetVAD(name);
+    if (window._slTrigger({ emotion: name, intensity: 0.8, contextTags: ["manual"] }, vad)) {
+      window._currentEmotion = name;
+      console.log('emotion:', name, '(soullink' + (vad ? ', VAD ' + JSON.stringify(vad) : '') + ')');
+      return true;
+    }
+  }
+  // 回退旧参数表 (engine 不可用时)
   var target = EMOTION_PRESETS[name];
   if (!target) { console.warn('Unknown emotion:', name); return false; }
   window._currentEmotion = name;
   window._transitionMoodParams(target, duration);
-  console.log('emotion:', name, '(blend mode,', duration, 'ms)');
+  console.log('emotion(legacy):', name, '(blend mode,', duration, 'ms)');
   return true;
+};
+
+/* sendMessage: 本地规则分类 (内置 1400 中文语料) → 自动触发情绪表演 */
+window.sendMessage = function(text) {
+  var cl = window._slClassifier, r = window._slRuntime;
+  if (!cl || !r) { console.warn('sendMessage: soullink 未就绪'); return null; }
+  var intent = cl.classify(String(text));
+  var vad = intent.naturalVAD || window._slGetVAD(intent.emotion, intent.variant);
+  var ok = window._slTrigger({
+    emotion: intent.emotion, variant: intent.variant,
+    naturalEmotion: intent.naturalEmotion,
+    naturalVAD: vad,
+    intensity: intent.intensity || 0.7,
+    contextTags: (intent.contextTags || []).concat(['message']),
+    sourceMessage: String(text)
+  }, vad);
+  // 持续情绪状态: applyVADTarget 保持 VAD 6s, 再缓慢恢复 neutral (表情不一闪而过)
+  if (r && vad) {
+    r.applyVADTarget(vad, 0.4);
+    if (window._slMoodTimer) clearTimeout(window._slMoodTimer);
+    window._slMoodTimer = setTimeout(function() {
+      try { r.applyVADTarget({valence:0, arousal:0, dominance:0}, 2.5); } catch(e) {}
+    }, 6000);
+  }
+  console.log('message classified:', ok, JSON.stringify(intent));
+  return intent;
 };
 
 window.getStatus = function() {
   return { ready: window._ready, motions: window._motions,
     expressions: window._expressions, emotions: window._emotions,
-    currentEmotion: window._currentEmotion, mood: window._mood };
+    currentEmotion: window._currentEmotion, mood: window._mood,
+    soullink: !!window._slReady };
 };
 
 /* 心情值 0-100: 0-25=angry, 25-45=sad, 45-65=neutral, 65-80=happy, 80+=surprised */
@@ -229,6 +286,18 @@ window.setMood = function(v) {
 };
 
 window.getMood = function() { return window._mood; };
+
+/* 诊断: 当前 engine 情绪状态 (VAD/FACS 实时快照) */
+window.getEmotionState = function() {
+  var s = window._slLastSnap;
+  if (!s) return null;
+  return {
+    emotion: s.emotionIntent ? s.emotionIntent.emotion : null,
+    variant: s.emotionIntent ? s.emotionIntent.variant : null,
+    vad: s.vad, facs: s.facs, state: s.state,
+    gain: s.parameterGain, bodyGain: s.bodyMotionGain
+  };
+};
 </script>
 
 <script type="module">
@@ -237,14 +306,25 @@ window.PIXI = await import('pixi.js');
 const PIXI = window.PIXI;
 const L4DM = await import('@jannchie/pixi-live2d-display');
 const Live2DModel = L4DM.Live2DModel;
+const SL = await import('@soullink-emotion/engine');
+window._SL = SL;
 
-console.log('1. imports OK');
+console.log('1. imports OK (pixi, live2d, soullink-engine)');
 
 // 画布分辨率: 默认最终板 480×800; 开发板 (SPI 240×320) 用 ?res=240x320
-const _res = (new URLSearchParams(location.search)).get('res');
+const _q = new URLSearchParams(location.search);
+const _res = _q.get('res');
 let W=480, H=800;
 if (_res) { const p=_res.toLowerCase().split('x').map(Number); if (p.length===2 && p[0]>0 && p[1]>0){W=p[0];H=p[1];} }
 console.log('canvas res', W+'x'+H);
+
+// 模型配置: 默认 Hiyori; 自制模型用
+//   ?model=MyModel/MyModel.model3.json&scale=0.16&x=0&y=0
+// (scale 相对 240 宽基准, 最终板 480 会自动 ×2; x/y 是相对默认位置的偏移 px)
+const MODEL_PATH  = _q.get('model') || './Hiyori/Hiyori.model3.json';
+const MODEL_SCALE = parseFloat(_q.get('scale') || '0.16');
+const MODEL_DX    = parseFloat(_q.get('x') || '0');
+const MODEL_DY    = parseFloat(_q.get('y') || '0');
 app = new PIXI.Application();
 await app.init({width:W, height:H, background:0x335577,
     resolution:1, antialias:true, preference:'webgl'});
@@ -252,12 +332,12 @@ document.body.appendChild(app.canvas);
 console.log('2. canvas', app.canvas.width, 'x', app.canvas.height, 'screen', app.screen.width, 'x', app.screen.height);
 
 try {
-    model = await Live2DModel.from('./Hiyori/Hiyori.model3.json',{autoHitTest:false, autoFocus:false});
+    model = await Live2DModel.from(MODEL_PATH,{autoHitTest:false, autoFocus:false});
     window._model = model;
 
-    model.scale.set(0.16 * W / 240);   /* 随分辨率放大 (480×800 → 0.32) */
-    model.x = W/2 - 6;
-    model.y = H * 0.55 + 120;
+    model.scale.set(MODEL_SCALE * W / 240);   /* 随分辨率放大 */
+    model.x = W/2 - 6 + MODEL_DX;
+    model.y = H * 0.55 + 120 + MODEL_DY;
     if (model.anchor) model.anchor.set(0.5, 0.5);
 
     app.stage.addChild(model);
@@ -300,6 +380,151 @@ try {
     }
     console.log('4. SUCCESS. motions:', window._motions, 'expressions:', window._expressions);
 
+    // 模型参数 ID 列表 — 表情调参 (tune_expressions.html) 要用
+    try {
+        const defs = im.parameters?.definitions || im.parameters?.ids || {};
+        const params = Object.keys(defs);
+        window._modelParams = params;
+        console.log('5. model params (%d):', params.length, params);
+    } catch(e) { window._modelParams = []; console.warn('params read fail:', e); }
+
+    // ── soullink emotion engine 初始化 (表情/微动/消息情绪分类) ──
+    try {
+      const profRes = await fetch('./Hiyori/soullink.profile.json');
+      if (profRes.ok) {
+        const profile = await profRes.json();
+        window._slProfile = profile;
+        // 压低随机 idle 微动 + 提高情绪表达增益 → 情绪成为画面主角
+        window._slRuntime = new SL.SoullinkRuntime({
+          profile,
+          motionStyle: { ...SL.motionStylePresets.natural,
+                         idleActionGain: 0.45,   // 0-2, 压低随机点头/歪头
+                         spontaneity: 0.6 }       // 0-2, 压低 idle 离散动作频率
+        });
+        window._slRuntime.setParameterGain(1.6);   // FACS 表情幅度
+        window._slRuntime.setBodyMotionGain(1.3);  // 头部/身体微动幅度
+        window._slClassifier = new SL.MessageReactionClassifier();
+        window._slStartedAt = performance.now() / 1000;
+        window._slLastTime = window._slStartedAt;
+        window._slReady = true;
+        window._motionQueueEnabled = false;  // engine 全权驱动参数, 退役旧 motion 队列
+        // OSD: 右上角 DOM 覆盖层显示情绪状态 (不依赖 PIXI.Text 渲染)
+        window._slOsd = document.getElementById('osd');
+        console.log('6. soullink engine ready (paramMap:', Object.keys(profile.parameterMap||{}).length, ')');
+        window._slTrigger({ emotion: 'neutral', intensity: 0.4, contextTags: ['init'] }, null);
+        // 渲染: 保持库默认 autoUpdate (onRender 应用参数计算 mesh 变换)。
+        // engine 参数在 ticker 每帧写入, 渲染前 onRender 应用 → 画面响应参数。
+        app.ticker.add(() => {
+          if (window._slPaused) return;   // 诊断/测试时暂停参数写入
+          const r = window._slRuntime, m2 = window._model;
+          if (!r || !m2) return;
+          const now = performance.now() / 1000;
+          const dt = Math.min(0.1, now - (window._slLastTime || now));
+          window._slLastTime = now;
+          // engine 输出 → 增强 → 写参数 (渲染前应用)
+          const snap = r.update(now - (window._slStartedAt || now), dt);
+          window._slLastSnap = snap;   // 诊断用 (getEmotionState)
+          const p = snap.live2dParams;
+          // ── 情绪表情增强: engine 的柔和情绪视觉太弱, 放大到可见幅度 (clamp 防脸朝下消失) ──
+          const ei = snap.emotionIntent;
+          if (ei) {
+            if (ei.emotion === 'shy' || ei.emotion === 'bashful' || ei.emotion === 'sad') {
+              // 低头: 至少 16°, 最多 26° (Hiyori 上限 30°)
+              if (typeof p.ParamAngleY === 'number') {
+                p.ParamAngleY = Math.max(-26, Math.min(14, p.ParamAngleY * 3));
+                if (p.ParamAngleY > -16) p.ParamAngleY = -16;
+              }
+              // 微微歪头 (害羞神态)
+              if (typeof p.ParamAngleZ === 'number') p.ParamAngleZ = Math.max(-15, Math.min(15, p.ParamAngleZ + 5));
+              // 眼神向下 (害羞躲闪)
+              if (typeof p.ParamEyeBallY === 'number') p.ParamEyeBallY = Math.max(-0.6, p.ParamEyeBallY - 0.25);
+              // 脸红更明显
+              if (typeof p.ParamCheek === 'number') p.ParamCheek = Math.max(p.ParamCheek, 0.45);
+            } else if (ei.emotion === 'happy' || ei.emotion === 'excited') {
+              if (typeof p.ParamMouthForm === 'number') p.ParamMouthForm = Math.max(p.ParamMouthForm, 0.35);
+              if (typeof p.ParamEyeLSmile === 'number') p.ParamEyeLSmile = Math.max(p.ParamEyeLSmile, 0.4);
+              if (typeof p.ParamEyeRSmile === 'number') p.ParamEyeRSmile = Math.max(p.ParamEyeRSmile, 0.4);
+            }
+          }
+          for (const id in p) { try { m2.setParameterValue(id, p[id]); } catch(e) {} }
+          // OSD 更新 (DOM, 只在变化时写): emotion/variant + valence + mood
+          const et = window._slOsd;
+          if (et) {
+            const ei = snap.emotionIntent, vv = snap.vad;
+            let txt = ei ? (ei.emotion + (ei.variant ? '/' + ei.variant : '')) : '--';
+            if (vv && typeof vv.valence === 'number') txt += ' V' + vv.valence.toFixed(2);
+            txt += '  mood:' + window._mood;
+            if (et._last !== txt) { et.textContent = txt; et._last = txt; }
+          }
+        });
+      } else {
+        console.warn('6. profile fetch failed:', profRes.status, '(legacy mood kept)');
+      }
+    } catch(e) { console.warn('6. soullink init fail (legacy mood kept):', e.message); }
+
+    // ── 画面内自动诊断: 加载后自动跑, 结果显示在 DOM 面板上 ──
+    window.runDemo = async function() {
+      const m = window._model;
+      const dp = document.getElementById('demoPanel');
+      const setPanel = (t) => {
+        if (dp) { dp.style.display = 'block'; dp.textContent = t; }
+        console.log('[demo]', String(t).replace(/\n/g, ' | '));
+      };
+      if (!m) { setPanel('ERR: 模型未加载'); return; }
+      try {
+        setPanel('STEP 1/3: 直接设 ParamAngleY=0.8, 保持 3 秒\n★ 头应明显歪 (盯住头看!)');
+        m.setParameterValue('ParamAngleY', 0.8);
+        await new Promise(r=>setTimeout(r, 3000));
+        const rb1 = m.internalModel?.coreModel?.getParameterValueById?.('ParamAngleY');
+        setPanel('STEP 2/3: 读回=' + rb1 + ' 已复位\n接下来 sendMessage("我喜欢你") — 低头害羞, 保持 5 秒');
+        m.setParameterValue('ParamAngleY', 0);
+        await new Promise(r=>setTimeout(r, 1200));
+        window.sendMessage('我喜欢你');
+        await new Promise(r=>setTimeout(r, 5000));   // 5s 让 VAD 充分展开
+        const st = window.getEmotionState();
+        const sv = window._slLastSnap?.live2dParams?.ParamAngleY;
+        const rb2 = m.internalModel?.coreModel?.getParameterValueById?.('ParamAngleY');
+        setPanel('STEP 3/3: emotion=' + (st && st.emotion) + '/' + (st && st.variant) +
+                 '\nengine ParamAngleY=' + (sv != null ? sv.toFixed(2) : '?') +
+                 '  coreModel=' + (rb2 != null ? rb2.toFixed(2) : '?') +
+                 '\n★ 低头看到了吗?');
+        await new Promise(r=>setTimeout(r, 4000));
+        setPanel('诊断结束 — 请反馈: 1) STEP1 头歪了吗  2) shy 低头看到了吗');
+      } catch(e) { setPanel('ERR: ' + e.message); }
+    };
+    // 加载后自动跑 (验证通过后移除此行)
+    setTimeout(window.runDemo, 1200);
+
+    // ── 闭眼测试: 验证 setParameterValue 对渲染的视觉效果 ──
+    // 在 autoUpdate=false 下执行: 若闭眼可见 → autoUpdate 方案 OK, 低头问题在 ParamAngleY 对头部无效;
+    // 若闭眼也不可见 → autoUpdate=false 破坏渲染, 应保持 autoUpdate=true。
+    window.eyeTest = async function() {
+      const m = window._model;
+      const setPanel = (t) => {
+        if (window._slDemoPanel) window._slDemoPanel.text = t;
+        console.log('[eyeTest]', t.replace(/\n/g, ' | '));
+      };
+      if (!m) { setPanel('模型未加载'); return; }
+      const prevAuto = m.autoUpdate;
+      m.autoUpdate = false;         // 停库自动更新 (防眼眨覆盖闭眼)
+      window._slPaused = true;      // 停 engine 帧循环
+      await new Promise(r=>setTimeout(r, 120));
+      try {
+        setPanel('闭眼测试 1/2: ParamEyeLOpen=0\n★ 眼睛应该闭上, 保持 3.5 秒 (盯住眼睛!)');
+        m.setParameterValue('ParamEyeLOpen', 0);
+        m.setParameterValue('ParamEyeROpen', 0);
+        await new Promise(r=>setTimeout(r, 3500));
+        setPanel('闭眼测试 2/2: ParamEyeLOpen=1 恢复\n★ 眼睛重新睁开?');
+        m.setParameterValue('ParamEyeLOpen', 1);
+        m.setParameterValue('ParamEyeROpen', 1);
+        await new Promise(r=>setTimeout(r, 2000));
+        setPanel('闭眼测试结束 — 报告: 眼睛闭上过吗?');
+      } finally {
+        m.autoUpdate = prevAuto;
+        window._slPaused = false;
+      }
+    };
+
     // ── 动作队列系统初始化 ──
     // 保存原始 startRandomMotion，接管动作调度
     if (im?.motionManager) {
@@ -312,8 +537,12 @@ try {
     // 应用初始表情 + 启动动作队列
     setTimeout(function() {
         window._applyMoodParamsToModel();
-        // 首次 idle 动作 1.5s 后启动
-        window._motionLoopTimer = setTimeout(window._motionQueueLoop, 1500);
+        // 首次 idle 动作 1.5s 后启动 (engine 全权驱动时跳过)
+        if (window._motionQueueEnabled) {
+            window._motionLoopTimer = setTimeout(window._motionQueueLoop, 1500);
+        } else {
+            console.log('Motion queue skipped (soullink engine drives parameters)');
+        }
     }, 500);
     console.log('Motion queue system ready (native eye blink + natural movements preserved)');
 

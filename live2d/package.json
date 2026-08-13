@@ -7,7 +7,8 @@
     "install-deps": "npm install"
   },
   "dependencies": {
-    "pixi.js": "^8.0.0",
-    "@jannchie/pixi-live2d-display": "^1.3.0"
+    "@jannchie/pixi-live2d-display": "^1.3.0",
+    "@soullink-emotion/sdk": "^0.1.0-beta.1",
+    "pixi.js": "^8.19.0"
   }
 }
