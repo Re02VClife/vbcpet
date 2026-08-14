@@ -77,6 +77,22 @@
 
 ### 项目列表
 
+#### 远程控制 Claude Code 类(桌宠=远控终端, 2026-08-13 调研)
+
+> 目标: 让硬件(桌宠)成为 Claude Code 的远程终端。这些项目统一架构 = **SDK/CLI 拉起进程 + `stream-json` 实时输出**, 不是连接运行中的会话实例。上下文靠 `--resume <session_id>` 带入。
+
+| 项目 | 仓库 | 架构 | 参考价值 |
+|------|------|------|---------|
+| 官方 remote-control | Claude Code v2.1.51+ 内置 `claude remote-control` | 手机 Claude app 扫码接管 | 官方路线, 但需 claude.ai 登录 |
+| claude-remote-runner | [sohampawar1866/claude-remote-runner](https://github.com/sohampawar1866/claude-remote-runner) | WebRTC + xterm.js 终端镜像 | P2P 实时终端 + 扫码配对 |
+| jamierpond/claude-remote | [jamierpond/claude-remote](https://github.com/jamierpond/claude-remote) | 隧道 HTTPS + `claude --output-format stream-json` | **stream-json 实时投递** + 会话 resume |
+| xacpx | [gadzan/xacpx](https://github.com/gadzan/xacpx) | 微信/飞书/元宝消息通道 | 聊天 App 发指令, 权限策略 |
+| CodePocket | [TinaSummer/CodePocket](https://github.com/TinaSummer/CodePocket) | 微信小程序 | 权限一键审批 + YOLO 自动批准 |
+| cc-remote | [muggle-stack/cc-remote](https://github.com/muggle-stack/cc-remote) | 网页 + VPS relay | 会话级控制 + 终端只读镜像 |
+| telecode | [PouyanJay/telecode](https://github.com/PouyanJay/telecode) | relay 转发加密消息 | 审批闸门 + 手机看分支/PR |
+
+**给 vbcpet 的落地结论**: serial_bridge 已实现"外部→CLI"通道; 补 `--resume <session_id>`(带入当前上下文) + stream-json 流式输出(实时上屏) 即成为硬件远程终端。
+
 #### soullink-emotion-sdk
 
 - **仓库**: [nanlingyin/soullink-emotion-sdk](https://github.com/nanlingyin/soullink-emotion-sdk)
