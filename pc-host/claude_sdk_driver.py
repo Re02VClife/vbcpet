@@ -28,13 +28,16 @@ except Exception:  # noqa: BLE001
 
 class ClaudeSdkDriver(AgentDriver):
     def __init__(self, cb: DriverCallbacks, cwd: str | None = None,
-                 permission_mode: str = "default", model: str | None = None) -> None:
+                 permission_mode: str = "default", model: str | None = None,
+                 resume_session: str | None = None, fork_session: bool = False) -> None:
         super().__init__(cb)
         if not _SDK_OK:
             raise RuntimeError("未安装 claude-agent-sdk：pip install claude-agent-sdk")
         self.cwd = cwd
         self.permission_mode = permission_mode
         self.model = model
+        self.resume_session = resume_session   # 恢复指定会话上下文 (硬件=当前会话远程终端)
+        self.fork_session = fork_session       # resume 时 fork 新会话 (安全, 不写回原会话)
         self.client: Any = None
         self._pump: asyncio.Task | None = None
         self._pending: dict[str, asyncio.Future] = {}
@@ -50,6 +53,10 @@ class ClaudeSdkDriver(AgentDriver):
         )
         if self.model:
             opts_kwargs["model"] = self.model
+        if self.resume_session:
+            opts_kwargs["resume"] = self.resume_session
+        if self.fork_session:
+            opts_kwargs["fork_session"] = True
         options = sdk.ClaudeAgentOptions(**opts_kwargs)
         self.client = sdk.ClaudeSDKClient(options)
         await self.client.connect()

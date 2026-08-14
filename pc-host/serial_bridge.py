@@ -14,17 +14,43 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import time
 import threading
+
+# Windows 控制台 GBK 打印 emoji/中文会崩 → 强制 UTF-8
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from itertools import count
 from pathlib import Path
 
 import serial
 
+
+def _project_dir(cwd: str) -> str:
+    """Claude Code 项目目录名 (路径 → 连字符)"""
+    import re
+    p = str(Path(cwd).resolve()).replace("\\", "/").strip("/")
+    return re.sub(r"[^A-Za-z0-9]", "-", p)
+
+
+def _latest_session_id(cwd: str) -> str | None:
+    """找 cwd 对应 Claude Code 项目里最近的会话 id"""
+    import glob
+    files = glob.glob(str(Path.home() / ".claude" / "projects" / _project_dir(cwd) / "*.jsonl"))
+    if not files:
+        return None
+    return Path(max(files, key=os.path.getmtime)).stem
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from agent_driver import DriverCallbacks, Usage, PermissionRequest  # noqa: E402
+from agent_bridge import _session_path, inject_to_inputbox, poll_replies, shorten  # noqa: E402
+from chat_driver import ChatDriver  # noqa: E402
 from claude_sdk_driver import ClaudeSdkDriver  # noqa: E402
 
 
@@ -49,10 +75,15 @@ def _start_http(root: str) -> tuple[HTTPServer, int]:
 
 class UnifiedBridge:
     def __init__(self, port: str = "COM16", baud: int = 2_000_000, jpeg_quality: int = 80,
-                 res: str = "480x800"):
+                 res: str = "480x800", mode: str = "dev",
+                 resume_session: str | None = None, fork_session: bool = False):
         self.ser = serial.Serial(port, baud, timeout=0.05, write_timeout=3)
         self.jpeg_quality = jpeg_quality
         self.res = res          # 画布分辨率 "WxH" (默认最终板 480×800; 开发板用 240x320)
+        self._mode = mode       # dev=Claude Code CLI (工具/开发), chat=轻量直连 (生活聊天)
+        self._resume_session = resume_session   # 显式 resume 指定会话; None=自动用最近会话
+        self._fork_session = fork_session       # True=resume 时 fork 新会话 (安全模式)
+        self._repo = Path(__file__).resolve().parent.parent   # 项目根 (_start_http 会 chdir, 不能依赖 cwd)
         self._seq = count(1)
         self._driver: ClaudeSdkDriver | None = None
         self._pending_perm: PermissionRequest | None = None
@@ -109,7 +140,7 @@ class UnifiedBridge:
                 await self._apply_mood()
 
     async def _apply_l2d_status(self, state: str) -> None:
-        """Claude 状态 -> 动作 + 心情偏移"""
+        """Claude 状态 -> 动作 + 心情偏移 + 情绪表演 (soullink engine)"""
         mood_deltas = {
             "thinking": -2,
             "running":   0,
@@ -120,7 +151,80 @@ class UnifiedBridge:
         }
         delta = mood_deltas.get(state, 0)
         await self._adjust_mood(delta)
+        # 状态 → 情绪 (render.html 的 applyEmotion 已接入 soullink engine)
+        state_emotions = {
+            "thinking": "curious",
+            "running":  "neutral",
+            "editing":  "happy",
+            "done":     "excited",
+            "error":    "confused",
+            "blocked":  "confused",
+        }
+        emo = state_emotions.get(state)
+        if emo and self._page:
+            try:
+                await self._page.evaluate(f'() => window.applyEmotion("{emo}")')
+            except Exception:
+                pass
         # idle 动画由 render.html 持续运行 (mood hook 混合表情)
+
+    async def _set_mode(self, mode: str) -> None:
+        """切换对话模式: dev=Claude Code CLI (工具/开发), chat=轻量直连 (生活聊天)"""
+        if self._driver:
+            try:
+                await self._driver.stop()
+            except Exception:
+                pass
+        self._mode = mode
+        if mode == "chat":
+            print("对话模式 → chat (轻量直连, 无工具, 成本 ~10%)")
+            self._driver = ChatDriver(self._cb)
+        else:
+            resume_id = self._resume_session or _latest_session_id(str(self._repo))
+            if resume_id:
+                extra = "fork 新会话" if self._fork_session else f"resume {resume_id[:8]}… (带当前上下文)"
+                print(f"对话模式 → dev (Claude Code CLI, {extra})")
+                self._driver = ClaudeSdkDriver(self._cb, resume_session=resume_id,
+                                               fork_session=self._fork_session)
+            else:
+                print("对话模式 → dev (Claude Code CLI, 新会话)")
+                self._driver = ClaudeSdkDriver(self._cb)
+        await self._driver.start()
+
+    async def _inject(self, text: str) -> None:
+        """中转站: 注入文字到当前 VS Code 对话窗口 → 实时监工 → 推送到硬件"""
+        sid = _latest_session_id(str(self._repo))
+        if not sid:
+            print("[inject] 未找到当前会话 (先开一个 VS Code/Claude Code 窗口)")
+            return
+        proj = _project_dir(str(self._repo))
+        path = _session_path(proj, sid)
+        start_off = path.stat().st_size if path.exists() else 0
+        print(f"[inject] → VS Code 会话 {sid[:8]}…  : {text[:60]}{'…' if len(text) > 60 else ''}")
+        ok = inject_to_inputbox(text)
+        if not ok:
+            return
+        # 流式监工: 线程轮询会话文件, queue 传回主循环
+        import queue
+        q: queue.Queue = queue.Queue()
+
+        def worker():
+            for _off, reply in poll_replies(proj, sid, last_offset=start_off):
+                q.put(reply)
+            q.put(None)
+
+        threading.Thread(target=worker, daemon=True).start()
+        loop = asyncio.get_event_loop()
+        replies = 0
+        while True:
+            item = await loop.run_in_executor(None, q.get)
+            if item is None:
+                break
+            replies += 1
+            short = shorten(item)
+            self._send_ctrl({"t": "say", "text": short})
+            print(f"  [Agent→硬件] {short}")
+        print(f"[inject] 结束, 收到 {replies} 条回复")
 
 
     # ── AgentDriver 回调 ──
@@ -130,6 +234,14 @@ class UnifiedBridge:
         # 截断到 ~300 字符 (P4 行缓冲 1024 字节, CJK ~3 字节/字)
         short = text if len(text) <= 300 else text[:297] + "..."
         self._send_ctrl({"t": "say", "text": short})
+        # 回复内容 → 情绪分类 (本地 1400 中文语料; 取尾部语义, 端到端情绪链路)
+        if self._page:
+            tail = text[-60:] if len(text) > 60 else text
+            tail = tail.replace("\\", "").replace('"', "'").replace("\n", " ").strip()
+            if tail:
+                asyncio.ensure_future(
+                    self._page.evaluate(f'() => window.sendMessage("{tail}")')
+                )
 
     def on_status(self, state: str, detail: str) -> None:
         print(f"[status] {state}: {detail}")
@@ -164,8 +276,18 @@ class UnifiedBridge:
             print(f"[P4] 已连接 fw={msg.get('fw')} board={msg.get('board')} caps={msg.get('caps')}")
         elif t == "button":
             key = msg.get("key", "")
-            cid = msg.get("confirm_id", "")
             print(f"[P4] 按键: {key}")
+            # 硬件按键 → harness 控制 (权限回路 / 状态查询)
+            if key in ("yes", "no", "yes_always"):
+                allow = key != "no"
+                remember = key == "yes_always"
+                asyncio.ensure_future(self._resolve_current(allow, remember))
+                print(f"  [P4] → harness 权限: {'允许' if allow else '拒绝'}{'+记住' if remember else ''}")
+            elif key == "panel":
+                info = (f"模式:{self._mode} mood:{self._mood} driver:"
+                        + (self._driver.__class__.__name__ if self._driver else "none"))
+                print(f"  [P4] panel → {info}")
+                self._send_ctrl({"t": "say", "text": f"状态: {self._mode} 模式, 心情 {self._mood}"})
         elif t == "heartbeat":
             pass
 
@@ -252,9 +374,11 @@ class UnifiedBridge:
     async def _read_stdin(self) -> None:
         loop = asyncio.get_event_loop()
         print("\n┌─────────────────────────────────────────────┐")
-        print("│ 输入文字 → 发给 Claude                       │")
+        print("│ 输入文字 → 发给 AI                          │")
         print("│ [1]=允许  [2]=拒绝  [3]=允许+记住  [4]=面板   │")
-        print("│ mood+10 / mood-5 → 直接调整心情              │")
+        print("│ mood+10 / mood-5 → 调整心情                  │")
+        print("│ /mode dev|chat → 切换开发/聊天模式           │")
+        print("│ /inject <文字> → 注入当前 VS Code 窗口(中转站)│")
         print("│ /q=退出                                      │")
         print("└─────────────────────────────────────────────┘\n")
 
@@ -294,6 +418,22 @@ class UnifiedBridge:
                     print(f"   心情 → {self._mood}")
                 except ValueError:
                     print("   用法: mood+10 或 mood-5")
+            elif line == "/inject":
+                print("   用法: /inject <文字> — 注入到当前 VS Code 对话窗口并监工")
+            elif line.startswith("/inject "):
+                await self._inject(line[8:].strip())
+            elif line == "/mode":
+                print(f"   当前模式: {self._mode}  (/mode dev 开发 | /mode chat 聊天)")
+            elif line in ("/chat", "/dev"):
+                await self._set_mode(line[1:])
+                print(f"   → 已切换到 {line[1:]} 模式")
+            elif line.startswith("/mode "):
+                mode = line[6:].strip()
+                if mode in ("dev", "chat"):
+                    await self._set_mode(mode)
+                    print(f"   → 已切换到 {mode} 模式")
+                else:
+                    print("   用法: /mode dev | /mode chat")
             else:
                 print(f"[user] {line}")
                 if self._driver:
@@ -353,17 +493,15 @@ class UnifiedBridge:
         print("启动 Live2D 浏览器…")
         await self._init_browser()
 
-        print("启动 Claude SDK…")
-        cb = DriverCallbacks(
+        self._cb = DriverCallbacks(
             on_say=self.on_say,
             on_status=self.on_status,
             on_panel=self.on_panel,
             on_permission=self.on_permission,
             on_log=lambda m: print(f"[claude] {m}"),
         )
-        self._driver = ClaudeSdkDriver(cb)
-        await self._driver.start()
-        print(f"就绪 — 串口: {self.ser.port} @ {self.ser.baudrate} baud\n")
+        await self._set_mode(self._mode)
+        print(f"就绪 — 串口: {self.ser.port} @ {self.ser.baudrate} baud, 模式: {self._mode}\n")
 
         results = await asyncio.gather(
             self._io_loop(),
@@ -384,6 +522,14 @@ if __name__ == "__main__":
     ap.add_argument("--quality", type=int, default=80)
     ap.add_argument("--res", default="480x800",
                     help="画布分辨率 WxH (默认最终板 480x800; 开发板 WT9932P4 用 240x320)")
+    ap.add_argument("--mode", default="dev", choices=["dev", "chat"],
+                    help="对话模式: dev=Claude Code CLI(开发), chat=轻量直连(生活聊天)")
+    ap.add_argument("--resume", default=None,
+                    help="dev 模式 resume 指定会话 id (默认自动用最近会话, 带入当前上下文)")
+    ap.add_argument("--fork", action="store_true",
+                    help="resume 时 fork 新会话 (安全模式, 不写回原会话)")
     args = ap.parse_args()
-    bridge = UnifiedBridge(port=args.port, baud=args.baud, jpeg_quality=args.quality, res=args.res)
+    bridge = UnifiedBridge(port=args.port, baud=args.baud, jpeg_quality=args.quality,
+                           res=args.res, mode=args.mode,
+                           resume_session=args.resume, fork_session=args.fork)
     asyncio.run(bridge.run())
