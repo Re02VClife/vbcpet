@@ -37,4 +37,13 @@ menu "vbcpet Display"
             bool "RGB888 (24bpp)"
     endchoice
 
+    config VBCPET_SKIP_DISPLAY
+        bool "Skip display init (bring-up: no panel / DSI not working)"
+        default n
+        help
+            Skip the panel backend init (MIPI-DSI / SPI) and run with a NULL
+            panel handle. Used during hardware bring-up to bring up the other
+            peripherals (buttons/LED/audio/IMU/SD/servo/NFC/USB) and the UART0
+            console when the display is not connected or its init hangs.
+
 endmenu

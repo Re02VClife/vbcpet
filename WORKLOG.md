@@ -794,3 +794,40 @@ pdftotext 成功提取屏手册全文, 确认背光 **8 LED 4S2P**, IF=20×2=40m
 
 - `firmware/README.md` 重写 (实际状态); `docs/webrtc-bringup.md` 新建 (WebRTC 板到后清单); PROGRESS 更新
 - WebRTC: `webrtc_skeleton.c` 未编译骨架 (esp-hosted + esp_webrtc + VPU, 板到后启用)
+
+## 2026-08-12~16 — 板到货 + 元件焊接
+
+- ✅ 打样板到货, 元件焊接完成
+- MP2315 忘买 → bring-up 阶段用 **mini360 模块顶替** 出 3.3V (后补购)
+- 之前记录的「短路」实为**供电 bring-up 问题** (IP5306 无电池 → VOUT 不出 5V), 非 PCB 短路
+
+## 2026-08-17 (周一) — 最终板 bring-up: 上电 + 固件卡死定位
+
+### 供电 bring-up (全链路打通)
+- IP5306 无电池时 VOUT 仅 **1.94V** (充电直通不升压); 接 1S 锂电后 **4V**; KEY(GPIO33) 短接唤醒后 **5V**
+- mini360 (顶替 MP2315) 出 3.3V, 实测 **3.48V** (范围内, 可接受)
+- 四路电源全部确认: **5V / 3.48V(3V3) / 2.79V(摄像头 2.8V) / 1.49V(摄像头 1.5V)** ✅
+
+### 板子 boot 确认 ✅
+- 模组正常 boot + 固件运行 (UART0 控制台经 CH340 = COM6 可见)
+- 但固件**卡死**: task_wdt 每 5 秒触发, `main` 任务忙等
+
+### 根因定位 (寄存器级确认)
+- 崩溃 dump: `A6 = 0x500A0000` = **MIPI_DSI_HOST** (经 `esp32p4.peripherals.ld` 核对)
+- MEPC ≈ 0x4007a6fc 落在 IROM (flash 映射代码), 紧循环轮询 DSI 状态位
+- 结论: `esp_lcd_panel_init()` 卡死 — **屏未接 / DSI lane 顺序问题** (文档早前标注的待核实项)
+
+### 屏幕连接问题 (次要, 明日继续)
+- 插屏后板子**连 ROM 日志都不打** (完全不 boot) → 屏 FPC 有短路/接触不良, 插上拖垮板子
+- 屏 VDD↔GND 电阻正常 (无静态短路), 但带载拖垮 → FPC 错位/接触问题待查
+- 拔屏后崩溃循环恢复, 证明**板子本身正常**
+
+### 固件改动: 跳过显示 (让外设+控制台先跑起来)
+- 新增 `CONFIG_VBCPET_SKIP_DISPLAY` (Kconfig + sdkconfig.defaults + display_pipeline_dsi.c)
+- `display_backend_init()` 跳过 DSI, `panel=NULL`, 上层 (display_pipeline/text_render) 已做 NULL 容错
+- **编译成功** (`build/vbcpet.bin`)
+
+### 烧录受阻 (明日待办)
+- **USB-C 不枚举**: 电脑上连「未知 USB 设备」都没有 → **D+ 物理不通** (查 A6/B6↔pin49 虚焊/线)
+- **UART0 烧录**: 需手动进下载模式 (GPIO35=0 + GPIO36=1 + 复位), 无人值守做不了
+- 固件已就绪, 只差烧录 → 烧进去即可 `test all` 验证外设

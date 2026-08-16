@@ -2,7 +2,7 @@
 
 > 基于 **ESP-IDF v5.5.3**, target `esp32p4`。
 > 主线: **串口 JPEG 推流管线**(Live2D 截图 → USB 串口 → P4 PPA 硬解 → 屏),已在开发板跑通;
-> 最终板 (ESP32-P4C6-Core, MIPI-DSI 480×800) 固件已就绪,待板到 bring-up。
+> 最终板 (ESP32-P4C6-Core, MIPI-DSI 480×800) 固件已就绪, bring-up 进行中 (08-17): 模组 boot + 固件运行已确认; DSI 初始化在屏未接时卡死 → 新增 `CONFIG_VBCPET_SKIP_DISPLAY` 跳过显示先测外设。
 
 ## 当前状态 (2026-08-11)
 
@@ -10,7 +10,7 @@
 |------|------|------|
 | 显示后端抽象 | ✅ | `display_backend.h`, Kconfig 选择 SPI/DSI |
 | SPI 后端 (开发板) | ✅ | ST7789V 240×320, WT9932P4-TINY 已验证 |
-| **DSI 后端 (最终板)** | ✅ | MIPI-DSI 2-lane ST7102 480×800, `esp_lcd_st7102` 组件, 背光 PWM GPIO48 |
+| **DSI 后端 (最终板)** | ⚠️ 卡死 | MIPI-DSI 2-lane ST7102 480×800, `esp_lcd_st7102` 组件; 屏未接时 `esp_lcd_panel_init` 忙等卡死 (MIPI_DSI_HOST 0x500A0000)。加 `CONFIG_VBCPET_SKIP_DISPLAY` 跳过 (bring-up 用) |
 | JPEG 硬解 | ✅ | PPA 解码, 单缓冲 (解码→文字→flush) |
 | 中文渲染 | ✅ | 7548 CJK 字形, UTF-8, 透明背景 |
 | 传输 | ✅ | USB Serial JTAG, RX 32KB (满分辨率帧缓冲) |
