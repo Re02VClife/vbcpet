@@ -70,6 +70,12 @@ void display_backend_set_brightness(int percent)
 
 int display_backend_init(void)
 {
+#ifdef CONFIG_VBCPET_SKIP_DISPLAY
+    /* bring-up: 跳过 DSI 面板初始化 (屏未接/DSI 未调通会卡死在 esp_lcd_panel_init)。
+     * 返回 0 但 g_panel 保持 NULL — 上层 (display_pipeline/text_render) 均已做 NULL 容错。 */
+    ESP_LOGW(TAG, "Display backend SKIPPED (CONFIG_VBCPET_SKIP_DISPLAY=y) — panel=NULL");
+    return 0;
+#else
     ESP_LOGI(TAG, "Initializing MIPI DSI backend (%dx%d)...", LCD_W, LCD_H);
 
     backlight_init();
@@ -105,6 +111,7 @@ int display_backend_init(void)
 
     ESP_LOGI(TAG, "MIPI DSI backend ready");
     return 0;
+#endif
 }
 
 void display_backend_deinit(void)
