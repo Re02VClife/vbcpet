@@ -61,7 +61,7 @@ void i2c_bus_scan(void)
         i2c_master_dev_handle_t dev = NULL;
         esp_err_t r = i2c_master_bus_add_device(s_bus,
                         &(i2c_device_config_t){ .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-                                                .device_address = a, .scl_speed_hz = 400000 },
+                                                .device_address = a, .scl_speed_hz = I2C_FREQ_HZ },
                         &dev);
         if (r == ESP_OK) {
             uint8_t reg = 0x00, val = 0;
