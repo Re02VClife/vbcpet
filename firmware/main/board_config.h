@@ -26,7 +26,7 @@ extern "C" {
 /* ── I2C 总线 (共享: 触摸 / NFC / MPU-6500 / OV5640, 4.7k 上拉) ── */
 #define PIN_I2C_SDA           GPIO_NUM_8
 #define PIN_I2C_SCL           GPIO_NUM_21
-#define I2C_FREQ_HZ           400000
+#define I2C_FREQ_HZ           100000   /* bring-up: 疑似缺外部上拉, 400k 全部超时; 降 100k 验证 */
 
 /* ── 触摸 (ST7102 内置, 3.3V 直连) ── */
 #define PIN_TP_RST            GPIO_NUM_9

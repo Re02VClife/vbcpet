@@ -109,6 +109,26 @@ static void console_task(void *arg)
             REG_SET_BIT(LP_SYSTEM_REG_SYS_CTRL_REG, LP_SYSTEM_REG_FORCE_DOWNLOAD_BOOT);
             vTaskDelay(pdMS_TO_TICKS(50));
             esp_restart();
+        } else if (strcmp(cmd, "rd") == 0) {
+            /* 诊断: 真实读一个 I2C 地址的寄存器, 打印 esp_err_t + 读到字节
+             * 用法: rd <addr_hex> <reg_hex>  例: rd 68 75 / rd 50 0 */
+            unsigned a = 0, rg = 0;
+            if (sscanf(arg2, "%x %x", &a, &rg) == 2 && a > 0) {
+                ESP_LOGI(TAG, "rd: read from addr=0x%02X reg=0x%02X ...", a, rg);
+                i2c_master_dev_handle_t dev = NULL;
+                esp_err_t e1 = i2c_master_bus_add_device(i2c_bus_get_handle(),
+                    &(i2c_device_config_t){ .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+                                            .device_address = (uint16_t)a, .scl_speed_hz = I2C_FREQ_HZ }, &dev);
+                if (e1 != ESP_OK) { ESP_LOGE(TAG, "add_device err=%d", e1); break; }
+                uint8_t regb = (uint8_t)rg, val = 0xAA;
+                size_t n = 1;
+                esp_err_t e2 = i2c_master_transmit_receive(dev, &regb, 1, &val, n, 50);
+                ESP_LOGI(TAG, "rd result: trx_err=%d (0=OK 261=NOT_ERR 258=NOT_FOUND 263=TIMEOUT?) val=0x%02X n=%u",
+                         e2, val, (unsigned)n);
+                i2c_master_bus_rm_device(dev);
+            } else {
+                printf("用法: rd <addr_hex> <reg_hex>\n");
+            }
         } else if (strcmp(cmd, "brightness") == 0) {
             int p = atoi(arg2);
             if (p >= 0 && p <= 100) {

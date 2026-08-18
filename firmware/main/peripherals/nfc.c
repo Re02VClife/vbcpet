@@ -16,7 +16,7 @@ static i2c_master_dev_handle_t s_dev = NULL;
 int nfc_init(void)
 {
     ESP_RETURN_ON_ERROR(i2c_bus_init(), TAG, "i2c bus init fail");
-    ESP_RETURN_ON_ERROR(i2c_bus_add_device(NFC_I2C_ADDR, 400000, &s_dev), TAG, "i2c add device fail");
+    ESP_RETURN_ON_ERROR(i2c_bus_add_device(NFC_I2C_ADDR, I2C_FREQ_HZ, &s_dev), TAG, "i2c add device fail");
 
     gpio_config_t fd = {
         .pin_bit_mask = 1ULL << PIN_NFC_FD,

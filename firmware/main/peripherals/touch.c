@@ -31,7 +31,7 @@ int touch_init(void)
              * 触摸 0x00 寄存器读回状态字节。这里先记录, 具体协议带起来确认。 */
             ESP_LOGI(TAG, "I2C 0x%02X 响应 — 可能是触摸或 NFC", PROBE_ADDRS[i]);
             if (s_addr == 0) {
-                if (i2c_bus_add_device(PROBE_ADDRS[i], 400000, &s_dev) == ESP_OK) {
+                if (i2c_bus_add_device(PROBE_ADDRS[i], I2C_FREQ_HZ, &s_dev) == ESP_OK) {
                     s_addr = PROBE_ADDRS[i];
                     ESP_LOGI(TAG, "Touch init @0x%02X (TP_RST GPIO%d 不复位 — ST7123 由 LCD_RST 控制)",
                              s_addr, PIN_TP_RST);
