@@ -39,6 +39,7 @@ idf_component_register(
     INCLUDE_DIRS
         "."
     REQUIRES
+        hal
         nvs_flash
         driver
         esp_lcd

@@ -30,7 +30,8 @@ int sk6812_init(void)
         .trans_queue_depth = 4,
     };
     ESP_RETURN_ON_ERROR(rmt_new_tx_channel(&cfg, &s_tx), TAG, "rmt tx channel fail");
-    ESP_RETURN_ON_ERROR(rmt_new_copy_encoder(NULL, &s_enc), TAG, "copy encoder fail");
+    rmt_copy_encoder_config_t copy_cfg = {0};   /* config 不能传 NULL (IDF 5.5 会返回 INVALID_ARG) */
+    ESP_RETURN_ON_ERROR(rmt_new_copy_encoder(&copy_cfg, &s_enc), TAG, "copy encoder fail");
     ESP_RETURN_ON_ERROR(rmt_enable(s_tx), TAG, "rmt enable fail");
 
     memset(s_pixels, 0, sizeof(s_pixels));
@@ -81,6 +82,10 @@ void sk6812_show(void)
 
 int sk6812_self_test(void)
 {
+    if (!s_tx || !s_enc) {
+        ESP_LOGE(TAG, "Self-test SKIP: RMT 通道未初始化 (init 失败), 报 FAIL");
+        return -1;
+    }
     ESP_LOGI(TAG, "Self-test: 彩虹循环 8 次…");
     for (int round = 0; round < 8; round++) {
         for (int i = 0; i < SK6812_COUNT; i++) {

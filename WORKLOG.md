@@ -1,4 +1,28 @@
 # vbcpet 工作日志
+## 2026-08-18 (周一) — 烧录管线打通 + dl 免strap + I2C SDA 拉低定位
+
+### 烧录管线打通 (核心突破)
+- 诊断结论: **strapping 一直"无效"的真正原因是复位方式** —— GPIO35/36 strap 完全有效, 需要**硬复位(RST1 按键 / CHIP_PU)** 而非断电重上电; 板载 RST1 存在。
+- 手法: 跳线 GPIO35(pin62)→GND + GPIO36(pin63)→3V3 → 按 RST1 → ROM 打印 `boot:0x7 (DOWNLOAD(USB/UART0/SPI)) waiting for download` → esptool 单进程 `write_flash` 成功。
+- 坑: ① esptool 两进程(先 read_mac 再 write_flash)会被 RAM-stub 破坏状态 → 一律单进程/或全程 `--no-stub`; ② PowerShell 中文/转义坑 → 脚本用 ASCII+正斜杠。
+
+### dl 软件免strap 验证成功
+- 新增串口命令 `dl`: 置 `LP_SYSTEM_REG_SYS_CTRL_REG`(0x50110008) bit2 FORCE_DOWNLOAD_BOOT + esp_restart → 下次启动直接进下载模式, 无需任何 strap。
+- 实测: 发送 dl → `boot:0x7 DOWNLOAD` → esptool 接入 → `DL-FLASH-OK hashes=3`。**从此重烧 = 串口发 dl + esptool。**
+- 全自动工作流: 守望 app → 发 dl → `--no-stub` write_flash。
+
+### USB-Serial/JTAG 架构更正 (重要)
+- P4 的 USB-Serial/JTAG 在 **USB FSLS PHY0 = GPIO24/25** (USB1P1_N0/P0), 默认即此路由; **不在模组 pin48/49(USB2 HS UTMI)**。板子 USB-C(接 pin48/49)归 USB2 OTG, 与 USJ 无关 —— 之前"USB-C D+ 不枚举=主控坏"是误判。
+- 实测: 把 PC USB 信号线接 GPIO24/25 后, USJ 可枚举(PID_0012/1001); 但 app 的 servo_init(GPIO24/25) 会抢焊盘 → 闪烁不稳定; MINIMAL_USJ 模式(不启 servo)下 USB 稳定。
+
+### I2C 定位: SDA(GPIO8) 被拉低
+- 直读法 `scan`(不用 i2c_master_probe): 0x03-0x77 全部 `FOUND reg0=0x00` => **SDA 线被拉死到地**。
+- 解释既往: MPU WHO_AM_I=0x00(读回全0)、probe 全超时、touch/NFC 找不到, 均同根。
+- 待办: 逐个摘 NFC(0x55)/MPU(0x68) 定位拉低者; 修好后 touch 才能上总线。
+
+### 其他
+- 新命令: scan(直读法)/reboot/dl; 背光空指针保护; bringup 控制台逐字符组行; SECONDARY_NONE 关 secondary console。
+- vbcpet.bin 固化: MINIMAL_USJ 误入过一次(本地 sdkconfig 遗留开关), 已关。
 
 ## 2026-07-21 (周一)
 

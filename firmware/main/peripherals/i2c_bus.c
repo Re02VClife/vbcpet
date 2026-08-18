@@ -47,3 +47,32 @@ esp_err_t i2c_bus_probe(uint16_t addr)
     if (!s_bus) return ESP_ERR_INVALID_STATE;
     return i2c_master_probe(s_bus, addr, 50);
 }
+
+/** 扫描整条总线的 7-bit 地址, 区分 FOUND / NACK / TIMEOUT。
+ *  NACK = 该地址无设备响应 (总线正常); TIMEOUT = 事务未完成 (总线被拉死/未上拉)。 */
+/* 直读法扫描: 不用 i2c_master_probe (该 API 在本平台 async i2c 下会假超时),
+ * 而是按 MPU 的做法 add_device + 读 1 字节寄存器 0x00 —— 成功即 FOUND。 */
+void i2c_bus_scan(void)
+{
+    if (!s_bus) { ESP_LOGE(TAG, "bus not initialized"); return; }
+    int found = 0, nack = 0, to = 0;
+    ESP_LOGI(TAG, "I2C direct-scan 0x03-0x77 (SDA=%d SCL=%d, 400k) [reg0 read]...", PIN_I2C_SDA, PIN_I2C_SCL);
+    for (uint16_t a = 0x03; a <= 0x77; a++) {
+        i2c_master_dev_handle_t dev = NULL;
+        esp_err_t r = i2c_master_bus_add_device(s_bus,
+                        &(i2c_device_config_t){ .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+                                                .device_address = a, .scl_speed_hz = 400000 },
+                        &dev);
+        if (r == ESP_OK) {
+            uint8_t reg = 0x00, val = 0;
+            r = i2c_master_transmit_receive(dev, &reg, 1, &val, 1, 30);
+            i2c_master_bus_rm_device(dev);
+        }
+        if (r == ESP_OK)          { ESP_LOGI(TAG, "  0x%02X FOUND (reg0=0x%02X)", a, 0); found++; }
+        else if (r == ESP_ERR_TIMEOUT) to++;
+        else nack++;
+    }
+    ESP_LOGI(TAG, "scan done: FOUND=%d NACK=%d TIMEOUT=%d%s",
+             found, nack, to, to ? "  <== TIMEOUT>0: bus held/dead or missing pullup" : "");
+    if (found == 0 && to == 0) ESP_LOGW(TAG, "bus totally idle: check 4.7k pullups + device power");
+}

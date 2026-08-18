@@ -14,6 +14,8 @@
 #include "peripherals/usb_host.h"
 #include "peripherals/self_test.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "soc/lp_system_reg.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdio.h>
@@ -54,14 +56,21 @@ static void console_task(void *arg)
 {
     (void)arg;
     char line[128];
+    int n = 0;   /* 逐字符拼行: fgets 会因 UART 短读返回半行 (test all 被拆), 需自缓冲到换行 */
     while (1) {
-        if (fgets(line, sizeof(line), stdin) == NULL) {
-            vTaskDelay(pdMS_TO_TICKS(100));
+        int c = getchar();
+        if (c == EOF) {
+            vTaskDelay(pdMS_TO_TICKS(50));
             continue;
         }
-        /* 去掉行尾换行 */
-        line[strcspn(line, "\r\n")] = '\0';
-        if (strlen(line) == 0) continue;
+        if (c == '\r' || c == '\n') {
+            if (n == 0) continue;            /* 空行 / 多换行 */
+            line[n] = '\0';
+            n = 0;
+        } else {
+            if (n < (int)sizeof(line) - 1) line[n++] = (char)c;
+            continue;                        /* 未到行尾, 继续收 */
+        }
 
         char cmd[32] = {0}, arg2[32] = {0};
         sscanf(line, "%31s %31s", cmd, arg2);
@@ -72,7 +81,10 @@ static void console_task(void *arg)
                    "  list                列出可用自检\n"
                    "  test <name>         运行单个自检 (buttons/leds/touch/audio/imu/sd/servo/nfc/usb)\n"
                    "  test all            运行全部自检\n"
-                   "  brightness <0-100>  设置背光亮度\n");
+                   "  scan                扫描 I2C 总线 (FOUND/NACK/TIMEOUT)\n"
+                   "  brightness <0-100>  设置背光亮度\n"
+                   "  reboot              软件复位\n"
+                   "  dl                  强制进下载模式(免 strap, 下个启动)\n");
         } else if (strcmp(cmd, "list") == 0) {
             self_test_list();
         } else if (strcmp(cmd, "test") == 0) {
@@ -83,6 +95,20 @@ static void console_task(void *arg)
             } else {
                 printf("用法: test <name | all>\n");
             }
+        } else if (strcmp(cmd, "scan") == 0) {
+            i2c_bus_scan();
+        } else if (strcmp(cmd, "reboot") == 0) {
+            ESP_LOGI(TAG, "software reboot ...");
+            vTaskDelay(pdMS_TO_TICKS(100));
+            esp_restart();
+        } else if (strcmp(cmd, "dl") == 0) {
+            /* 软件强制下载模式: 置 LP_SYSTEM_REG_SYS_CTRL bit2(FORCE_DOWNLOAD_BOOT)
+             * 后复位, 下一次启动直接进 ROM 下载模式, 完全绕过 GPIO35/36 硬 strap。
+             * (EFUSE_DIS_FORCE_DOWNLOAD 默认 0=允许; 位注释 need_des, 待实板验证) */
+            ESP_LOGW(TAG, "force-download: set FORCE_DOWNLOAD_BOOT bit + reset ...");
+            REG_SET_BIT(LP_SYSTEM_REG_SYS_CTRL_REG, LP_SYSTEM_REG_FORCE_DOWNLOAD_BOOT);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            esp_restart();
         } else if (strcmp(cmd, "brightness") == 0) {
             int p = atoi(arg2);
             if (p >= 0 && p <= 100) {
@@ -100,5 +126,5 @@ static void console_task(void *arg)
 /** 启动控制台任务 (由 main 在 bringup_init 后调用) */
 void bringup_start_console(void)
 {
-    xTaskCreate(console_task, "br-up-cmd", 4096, NULL, 4, NULL);
+    xTaskCreate(console_task, "br-up-cmd", 8192, NULL, 4, NULL);   /* 8KB: 自检调用链 (audio 堆分配后仍留余量) */
 }
