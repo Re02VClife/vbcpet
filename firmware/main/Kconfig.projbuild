@@ -47,3 +47,17 @@ menu "vbcpet Display"
             console when the display is not connected or its init hangs.
 
 endmenu
+
+menu "vbcpet Bring-up Debug"
+
+    config VBCPET_MINIMAL_USJ
+        bool "Minimal USB-Serial/JTAG isolation test"
+        default n
+        help
+            Boot straight into a minimal test: install the USB-Serial/JTAG
+            driver only (+ SK6812 LED heartbeat), skip host / display / engine
+            / peripheral init entirely. Used to isolate why the USB console
+            does not enumerate in normal mode.
+            LED: blink = app alive; green = USJ driver OK, red = install failed.
+
+endmenu

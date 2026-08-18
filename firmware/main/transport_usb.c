@@ -1,6 +1,7 @@
 /** USB Serial JTAG 传输实现 */
 #include "transport.h"
 #include "driver/usb_serial_jtag.h"
+#include "hal/usb_serial_jtag_ll.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"

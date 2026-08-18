@@ -111,7 +111,7 @@ GND: 1,3,15,33,40,47,52,83
 
 ### Strapping
 
-GPIO35(63)=悬空, GPIO37(64)=UART0_TXD, GPIO38(65)=UART0_RXD, GPIO34(57)=悬空, GPIO36(60)=悬空
+GPIO35(62)=悬空(内部上拉,默认1), GPIO36(63)=悬空(默认下拉), GPIO37(64)=UART0_TXD, GPIO38(65)=UART0_RXD, GPIO34(61)=悬空 (引脚号按模组手册 ESP32-P4C6-Core 使用指南 p9 核对)
 
 ### USB
 

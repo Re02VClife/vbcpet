@@ -15,6 +15,9 @@
 #include "text_render.h"
 #include "esp_timer.h"
 #include "driver/usb_serial_jtag.h"
+#ifdef CONFIG_VBCPET_MINIMAL_USJ
+#include "peripherals/sk6812.h"
+#endif
 #ifdef CONFIG_DISPLAY_BACKEND_DSI
 #include "bringup.h"
 #endif
@@ -32,8 +35,40 @@ static void on_ctrl(const char *json, void *ctx)
 static void on_raw(const char *line, void *ctx)
 { (void)ctx; engine_on_raw_line(line); }
 
+#ifdef CONFIG_VBCPET_MINIMAL_USJ
+/** 最小 USB-Serial/JTAG 隔离测试: 只装 USJ 驱动 + SK6812 心跳, 永不返回 */
+static void minimal_usj_test(void)
+{
+    ESP_LOGI(TAG, "[MINIMAL-USJ] boot (no host/display/bringup)");
+    bool sk_ok = (sk6812_init() == 0);
+    transport_t *t = transport_usb_create(16384, 16384);
+    bool usj_ok = (t != NULL);
+    ESP_LOGI(TAG, "[MINIMAL-USJ] sk6812=%s usj-driver=%s",
+             sk_ok ? "ok" : "fail", usj_ok ? "OK" : "FAIL");
+
+    if (sk_ok) {
+        sk6812_clear();
+        sk6812_set_all(usj_ok ? 0 : 255, usj_ok ? 255 : 0, 0); /* 绿=OK 红=FAIL */
+        sk6812_show();
+    }
+    bool on = false;
+    while (1) {
+        if (sk_ok) {
+            sk6812_set_all(on ? 0 : (usj_ok ? 0 : 255),
+                           on ? 0 : (usj_ok ? 255 : 0), 0);
+            sk6812_show();
+        }
+        on = !on;
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+#endif /* CONFIG_VBCPET_MINIMAL_USJ */
+
 void app_main(void)
 {
+#ifdef CONFIG_VBCPET_MINIMAL_USJ
+    minimal_usj_test();   /* 不返回: 隔离测试模式 */
+#endif
     ESP_LOGI(TAG, "vbcpet booting on %s (IDF %s)", CONFIG_IDF_TARGET, esp_get_idf_version());
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {

@@ -34,6 +34,7 @@ static const char *TAG = "disp-dsi";
 static esp_lcd_dsi_bus_handle_t    g_bus   = NULL;
 static esp_lcd_panel_io_handle_t   g_io    = NULL;
 static esp_lcd_panel_handle_t      g_panel = NULL;
+static bool                        g_bl_ready = false;   /* 背光 LEDC 是否已初始化 */
 
 /* ── 背光: LEDC PWM → MT3608 EN ── */
 static void backlight_init(void)
@@ -56,12 +57,14 @@ static void backlight_init(void)
         .hpoint     = 0,
     };
     ESP_ERROR_CHECK(ledc_channel_config(&ch));
+    g_bl_ready = true;
     ESP_LOGI(TAG, "Backlight PWM GPIO%d duty=%d/1023", PIN_BL_PWM, BL_BRIGHTNESS);
 }
 
 /** 背光亮度 0-100 (供 bring-up 命令调节) */
 void display_backend_set_brightness(int percent)
 {
+    if (!g_bl_ready) { ESP_LOGW(TAG, "backlight not initialized (skip display mode?)"); return; }
     if (percent < 0) percent = 0;
     if (percent > 100) percent = 100;
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, (percent * 1023) / 100);
