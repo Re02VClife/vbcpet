@@ -31,6 +31,14 @@ extern "C" {
  *  返回 0 成功。 */
 int display_backend_init(void);
 
+/** 请求强制初始化后端 (绕过 CONFIG_VBCPET_SKIP_DISPLAY)。
+ *  bring-up 'lcd' 命令调用: 串口触发才点屏, 开机仍保持跳过。 */
+void display_backend_request_init(void);
+
+/** 独立使能背光 (不碰 DSI)。若背光未初始化则先初始化, 再设亮度 0-100。
+ *  bring-up 'bl' 命令调用: 隔离背光链路测试, 不会触发 DSI/卡死系统。 */
+void display_backend_enable_backlight(int percent);
+
 /** 释放后端硬件资源。 */
 void display_backend_deinit(void);
 

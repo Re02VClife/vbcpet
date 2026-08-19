@@ -58,7 +58,7 @@ int self_test_run(const char *name)
     return -1;
 }
 
-void self_test_run_all(void)
+int self_test_run_all(void)
 {
     int pass = 0, fail = 0;
     for (int i = 0; i < (int)ENTRY_COUNT; i++) {
@@ -69,4 +69,5 @@ void self_test_run_all(void)
         if (r == 0) pass++; else fail++;
     }
     ESP_LOGI(TAG, "自检汇总: %d 通过, %d 失败", pass, fail);
+    return (pass << 16) | fail;
 }
