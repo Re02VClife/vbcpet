@@ -287,18 +287,30 @@ vbcpet/
 
 ## 八、下一步
 
+> ⚠️ **2026-08-18 转折**: V1 板主控 P4C6-Core 因 5V 打地短路烧毁(3.3V 轨短路)。**决定: 直接推进 V2 板重新打样 (P0+P1)**, 固件在现有 P4 开发板并行验证。=> **执行清单见 [hardware/v2-execution-plan.md](hardware/v2-execution-plan.md)**, 设计教训见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)**
+
+### 主线: V2 板打样 (P0+P1)
+
 | 优先级 | 任务 | 说明 |
 |--------|------|------|
-| **P0** | **MPU-6500(U7) 重焊/验证** | WHO_AM_I 在 400k/100k 均"成功读回 0x00"; 重焊 SDA/SCL/VDD/GND + 验 AD0(0x68/0x69, 用 `rd 68 75`/`rd 69 75`) |
-| **P0** | **NFC 补焊 + 屏幕 FPC/DSI** | NT3H2111 未焊; 屏幕 FPC 接触(插上拖垮板子)待查 → 修好后再做 DSI 显示 bring-up |
-| **P0** | 满分辨率推流实测 | 480×800 JPEG 在最终板实测 fps (目标 ≥8); 烧录通道已通(dl), 相关我方可发 `dl` 联调 |
-| P1 | 触摸协议确认 | ST7123 实际 I2C 地址 + 寄存器协议 (屏接好后探测; `scan`/`rd` 命令已就绪) |
-| P1 | 屏幕 FPC 接触修复 | 插屏即拖垮板子(ROM 都不打) — FPC 错位/短路, 需限流上电排查 |
-| P1 | P4 硬件端到端验证 | serial_bridge.py (`--res 480x800`) + 心情表情联动 (在最终板) |
-| P1 | 控制台僵化待修 | 长串口会话后 UART0 控制台偶发停响应(需 RST) — bringup console 待加固 |
-| P2 | 机械臂 USB 协议 | SO101 控制板 USB 协议确认 + P4 usb_host CDC-ACM 数据通路 |
-| P2 | WebRTC 接收链路 | 依 [docs/webrtc-bringup.md](docs/webrtc-bringup.md) 启用 esp-hosted + esp_webrtc |
-| P2 | 下一版修正 | L1 (IP5306) 201610→CD32; LED_A/+2V8 12mil; D1 pin5→+5V; USB_DP/DM→9.5mil; 把 USJ 引到可用 USB 口(当前在 GPIO24/25 与舵机冲突) |
+| **P0** | **电源保护** | F1 0Ω→**PPTC 1~1.5A**; +3.3V TVS; 5V/3.3V 大电容 — 防再烧主控 |
+| **P0** | **USJ 即插即用** | GPIO24/25(USJ) 引到板载 USB-C; 一条线供电+烧录+串口+JTAG (V1 只验证能枚举, 未引出) |
+| **P0** | **舵机改脚** | GPIO24/25 排他给 USJ; YAW/PITCH→GPIO28/29 (`board_config.h` 同步) |
+| **P1** | I2C 4.7k 上拉 | SDA/SCL 4.7kΩ→3V3; 上拉后试回 400kHz |
+| **P1** | 屏幕/FPC/DSI | flip-lock 座 + DSI 差分测试点 + MT3608 pin1 丝印; 一并修 V1 疑点(L1/CD32, D1 pin5→+5V, USB 9.5mil) |
+| P1 | 满分辨率推流实测 | 480×800 JPEG fps (目标 ≥8) — V2 板到手后 |
+| P1 | 控制台僵化待修 | **B1 在开发板并行**: UART0 长会话停响应, 加空闲看门狗 |
+| P1 | DSI ST7102 lane 预研 | **B3**: 备 lane swap/极性寄存器方案, V2 到手即试 |
+
+### 并行固件任务 (开发板 WT9932P4-TINY)
+
+| 任务 | 说明 |
+|------|------|
+| B1 | 控制台"僵化"修复 (空闲看门狗/队列保活) |
+| B2 | 背光链路驱动固化 (`bl`/`brightness`, MT3608 EN 时序) |
+| B3 | DSI ST7102 lane 顺序预研 (esp_lcd_st7102 init_cmds) |
+| B4 | 开机自检 + 状态灯巩固 (LED 闪烁编码错误码) |
+| B5 | 烧录流程文档化 (USJ 为主, `dl` 兜底) |
 
 ### 预计时间线
 
