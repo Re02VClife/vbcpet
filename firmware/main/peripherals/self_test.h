@@ -9,7 +9,8 @@ extern "C" {
 int self_test_run(const char *name);
 
 /** 运行全部自检, 打印汇总。 */
-void self_test_run_all(void);
+/** 运行全部自检。返回 (PASS<<16 | FAIL) 计数, 供状态灯/汇总使用。 */
+int self_test_run_all(void);
 
 /** 列出所有可用自检。 */
 void self_test_list(void);

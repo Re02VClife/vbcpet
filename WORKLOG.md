@@ -1,4 +1,26 @@
 # vbcpet 工作日志
+## 2026-08-18 (周一) — 状态灯 + 屏幕背光排障 + ⚠️ 主控烧毁(5V打地) + V2 路线图
+> ⚠️ **事故**: 调试中 5V 线误碰板子 GND 打火 → 5V 主干塌到 4.2V → P4 核心 100°C+ → 3.3V 对地短路 → **P4C6-Core 主控模块 die 烧毁**(3.3V 轨已短路, 待换新模块)。
+> 复盘: 板上 F1 实为 **0Ω 跳线(替保险丝)**, 主电源无真保险 → 浪涌直灌 P4。**下一代板设计教训已写入 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)。**
+
+### SK6812 状态灯 (完成)
+- 4 颗按键背光 LED 兼任状态灯: 低亮度 7%, 蓝启动/绿ok/黄warn/红err/灭。
+- 命令: `led <ok|warn|err|boot|off>`; `test all` 完自动按结果点亮(selftest 返回 P/F 计数)。实板五种颜色与熄灭全部验证通过 ✅。
+
+### 屏幕背光排障 (未解, 主控已烧)
+- 现象: 屏插着板子正常 boot(拖垮解除), 但背光 100% 不亮, DSI 强制初始化(`lcd`)卡死。
+- 诊断: 新增 `bl`(背光隔离,不碰DSI) + `gp`(通用GPIO 驱动高/低/读回/释放) 命令。
+- 读数: GPIO48(EN) 驱动高=仅1.2V(<MT3608 EN 门槛1.5V), 驱动低=0V, 读回=高; LED_A=0.08V(升压未起); EN网络对地16MΩ/对3.3V 4.2MΩ(悬空)。3V3轨 8.24k(健康)。线索指向 MT3608 焊反/EN引脚内部结构, 未能继续(事故中断)。
+- 经验: DSI 初始化卡死 = 之前记录过的 DSI HOST busy-wait(esp_lcd_new_dsi_bus 起), 屏未接/lane 未到屏。
+
+### 顺带修复
+- `display_backend_init` 重构: SKIP 分支 + `display_backend_request_init()`(lcd 强制) + `display_backend_enable_backlight()`(bl 隔离) 拆分, 避免 SKIP 卡死。
+
+### 下一步 (按 V2 路线图)
+1. 换新 P4C6-Core 模块前: 先给 F1 换真 PPTC 保险 + 3.3V TVS + 查 IP5306/MP2315 有无被打伤。
+2. 屏幕侧: MT3608 方向确认/重焊; DSI lane 顺序验证(需测试点)。
+3. 固件: 修控制台"僵化"(空闲看门狗)。
+
 ## 2026-08-18 (周一) — 烧录管线打通 + dl 免strap + 外设状态澄清
 
 ### 核心突破: 烧录管线打通

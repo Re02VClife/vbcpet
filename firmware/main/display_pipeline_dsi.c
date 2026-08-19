@@ -35,6 +35,7 @@ static esp_lcd_dsi_bus_handle_t    g_bus   = NULL;
 static esp_lcd_panel_io_handle_t   g_io    = NULL;
 static esp_lcd_panel_handle_t      g_panel = NULL;
 static bool                        g_bl_ready = false;   /* 背光 LEDC 是否已初始化 */
+static bool                        g_force_init = false; /* 'lcd' 命令强制点屏 (绕过 skip) */
 
 /* ── 背光: LEDC PWM → MT3608 EN ── */
 static void backlight_init(void)
@@ -71,14 +72,9 @@ void display_backend_set_brightness(int percent)
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
 
-int display_backend_init(void)
+/* 真实 DSI 初始化 (始终编译; SKIP 时由 'lcd' 命令强制调用) */
+static int dsi_backend_start(void)
 {
-#ifdef CONFIG_VBCPET_SKIP_DISPLAY
-    /* bring-up: 跳过 DSI 面板初始化 (屏未接/DSI 未调通会卡死在 esp_lcd_panel_init)。
-     * 返回 0 但 g_panel 保持 NULL — 上层 (display_pipeline/text_render) 均已做 NULL 容错。 */
-    ESP_LOGW(TAG, "Display backend SKIPPED (CONFIG_VBCPET_SKIP_DISPLAY=y) — panel=NULL");
-    return 0;
-#else
     ESP_LOGI(TAG, "Initializing MIPI DSI backend (%dx%d)...", LCD_W, LCD_H);
 
     backlight_init();
@@ -114,7 +110,20 @@ int display_backend_init(void)
 
     ESP_LOGI(TAG, "MIPI DSI backend ready");
     return 0;
+}
+
+int display_backend_init(void)
+{
+#ifdef CONFIG_VBCPET_SKIP_DISPLAY
+    if (!g_force_init) {
+        /* bring-up: 默认跳过 DSI (屏未接/DSI 未调通会卡死在 esp_lcd_panel_init)。
+         * 返回 0 但 g_panel 保持 NULL — 上层 (display_pipeline/text_render) 均已做 NULL 容错。 */
+        ESP_LOGW(TAG, "Display backend SKIPPED (SKIP_DISPLAY=y) — panel=NULL; 'lcd' 强制点屏");
+        return 0;
+    }
+    ESP_LOGW(TAG, "lcd: FORCED DSI init (bypass SKIP_DISPLAY)");
 #endif
+    return dsi_backend_start();
 }
 
 void display_backend_deinit(void)
@@ -134,4 +143,17 @@ void display_backend_flush(const uint16_t *fb)
 esp_lcd_panel_handle_t display_backend_get_panel(void)
 {
     return g_panel;
+}
+
+/** 请求强制初始化 (由 bring-up 'lcd' 命令调用, 串口触发才点屏) */
+void display_backend_request_init(void)
+{
+    g_force_init = true;
+}
+
+/** 独立背光使能 (不碰 DSI): 先确保 LEDC 初始化, 再设亮度百分比 */
+void display_backend_enable_backlight(int percent)
+{
+    if (!g_bl_ready) backlight_init();
+    display_backend_set_brightness(percent);
 }

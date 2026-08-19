@@ -1,6 +1,6 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-08-18 | 当前阶段: Phase 4 最终板 Bring-up — **烧录管线已打通** (strap+RST + 软件 `dl` 免strap), 自检 5PASS/4FAIL; 待办: MPU(U7) 重焊/地址验证 + NFC 补焊 + 屏幕 FPC/DSI
+> 更新: 2026-08-18 | 当前阶段: Phase 4 最终板 Bring-up — ⚠️ **主控 P4C6-Core 因 5V 打地短路烧毁**(3.3V 轨短路, 待换模块)。烧录管线已通(strap+RST + 软件 `dl`), SK6812 状态灯完成。**换代升级路线见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)**
 
 ---
 
