@@ -44,19 +44,23 @@
 ## 2. 烧录通道：免 strap 自动下载（P0 · 必须）
 
 ### 2.1 根因（踩过的坑）
-- V1 必须靠 GPIO35(pin62)=0 + GPIO36(pin63)=1 硬 strap + RST1 才能进下载模式，绕了一整轮烧录
-- esptool 两段式（read_mac 后 write_flash）会被 RAM-stub 互相踩 → 必须单进程 --no-stub
-- 后来用固件 dl 命令（置 LP_SYSTEM_REG_FORCE_DOWNLOAD_BOOT + esp_restart()）实现免 strap 重烧——已在板上验证 DL-FLASH-OK hashes=3
+- **V1 的 USB-C 没引 USJ**：板子 USB-C 走的是 USB2 HS UTMI（pin48/49 = USB2 OTG），而 P4 原生 USJ 在 GPIO24/25（FSLS PHY0）——没布到任何 USB 座，所以只能靠 GPIO35/36 硬 strap + RST1 进下载，绕了一整轮。
+- **GPIO24/25 还被舵机占了**（servo_init LEDC），即使飞线 USB 信号到 GPIO24/25 能枚举（PID_0012→1001），烧录时也会被舵机抢焊盘而不稳。
+- esptool 两段式（read_mac 后 write_flash）会被 RAM-stub 互相踩 → 必须单进程 --no-stub。
+- 后来用固件 dl 命令（置 LP_SYSTEM_REG_FORCE_DOWNLOAD_BOOT + esp_restart()）实现免 strap 重烧——已在板上验证 DL-FLASH-OK hashes=3（仍是经 CH340/UART0）。
 
-### 2.2 V2 改动
+### 2.2 V2 改动 — ★主线: USB-Serial/JTAG 即插即用★
+
+V2 的目标是**一根 USB-C 线即插即用**(像开发者板上电-烧录-串口-JTAG 全自动), **不需要** CH340、不需要烧录排针、不需要 DTR/RTS 自动复位电路。
+
 | 项 | 说明 |
 |---|---|
-| 默认运行, 串口可进下载 | 固件保留 dl 命令（V1 已验证），出厂必带 —— V2 烧录通道的主干 |
-| 专用烧录键/座 | 板边加 2×2 烧录排针 (RX/TX/GND/5V) 或烧录按键：按 1s 进下载模式，避免拆壳找 strap |
-| DTR/RTS 自动复位 | USB-Serial 桥（CH340/CP2102）接 RTS→RST、DTR→strap（经典 devkit 自动复位电路）→ 一条命令无人值守烧录 |
-| USB-Serial/JTAG 优先 | P4 原生 USB-Serial/JTAG 是烧录/调试首选（见 §3），应作为默认烧录口布到标准调试口 |
-| 一键自动烧录 | 主控放串口引导模块：上电串口发 dl 字节 → 直接进下载，配合 host 脚本一轮完成 |
-| esptool 经验固化 | 脚本统一 --no-stub 单进程（V1 踩坑），写入 firmware/ 文档 |
+| ★★ 调试口 = 板载 USB-C(引 USJ) | 把 GPIO24/25 (USJ FSLS PHY0) + 5V + GND 布到**板上一个标准 USB-C**（DP/DM 经 ESD 直连, VBUS 连 5V）→ 一条线 = 供电+烧录+串口日志+JTAG。V1 已验证此路可枚举(PID_0012→1001), 只是没引到 USB-C |
+| ★ esptool 直连 | 电脑 USB 插板载 USB-C → esptool 直接识别这个 USB 口烧录, 无需 --before 复位/strap；USJ 原生 ROM 下载+自动复位 |
+| ★ OpenOCD/JTAG | 同一线可做 JTAG 调试(firmware/esp32p4-usj-flash.cfg + usj_flash.tcl 已备好), V1 因 GPIO24/25 被舵机占用而没稳定, V2 排他后即用 |
+| 固件 dl 命令兜底 | 保留 dl(置 FORCE_DOWNLOAD_BOOT+restart, V1 已验证 hashes=3) 作**远程/无壳重烧**兜底, 出厂必带 |
+| (可选备用) CH340 排针 | 仅当想用独立 UART0 外接串口时加 2×2 (RX/TX/GND/5V), **非必需**; V1 的 UART0+CH340 方案降级为备用 |
+| esptool 经验固化 | 脚本统一 --no-stub 单进程(V1 踩坑), 写入 firmware/ 文档 |
 
 ---
 
@@ -70,10 +74,11 @@
 ### 3.2 V2 改动
 | 项 | 说明 |
 |---|---|
-| USB-Serial/JTAG 引脚排他 | GPIO24/25 绑定 USB-Serial/JTAG (PHY0)，禁止再分配给舵机等外设（硬件时序优先级最高） |
-| 舵机改脚 | YAW/PITCH 移到不与 USB1 抢脚的 GPIO（如 28/29 已预留 SERVO3/4），或加逻辑隔离 |
-| USB-C 双角色规划 | 明确 调试 USB-C（USB-Serial/JTAG 或 USB1 OTG）与 外设 USB-A 互不干扰，一人一个 PHY |
-| 电源/数据分离 | 外设 USB-A 的 VBUS 经 PPTC（文档已规定 500mA），调试口 VBUS 直连供电 |
+| ★★ GPIO24/25 = 板载调试 USB-C | **硬路由**到板载 USB-C 的 DP/DM（FSLS PHY0, USJ），作主调试口；一条线即插即用 |
+| ★ USB-Serial/JTAG 引脚排他 | GPIO24/25 之后**禁用**给舵机等任何外设（这是 V1 USJ 不稳定的根因）；硬件脚位规划里划死 |
+| 舵机改脚 | YAW/PITCH 移到 28/29(已预留 SERVO3/4) 或不冲突脚 |
+| USB-C 双角色规划 | 调试口(USJ, GPIO24/25)与 外设 USB-A(USB1 OTG, GPIO26/27 pin53/54) 互不干扰, 一人一个 PHY; 也可把 USB1 OTG 引到另一个 USB-C |
+| 电源/数据分离 | 外设 USB-A 的 VBUS 经 PPTC(文档已规定 500mA), 调试口 VBUS 直连供电 |
 
 ---
 
@@ -149,7 +154,7 @@
 | 优先级 | 模块 | 内容 | 花费估计 |
 |---|---|---|---|
 | P0 | §1 电源保护 | 真保险 PPTC + 3.3V/5V TVS + 入口电容 | 低 |
-| P0 | §2 自动烧录 | DTR/RTS 自动复位电路 + 烧录排针 + 一键脚本 | 低 |
+| P0 | §2 自动烧录 | ★ 板载 USB-C 引 USJ(即插即用) + dl 兜底; CH340/排针降为可选 | 低 |
 | P0 | §3 引脚排他 | GPIO24/25 归 USB-Serial/JTAG，舵机改脚 | 中（改板） |
 | P1 | §4 I2C 上拉 | 4.7k 上拉 + MPU 补焊验证 | 低 |
 | P1 | §5 屏幕 | flip-lock 座 + DSI 测试点 + lane 验证流程 | 中 |
@@ -168,7 +173,7 @@
 | D1 | TVS | 保留 + 加强 | USB 输入保护 |
 | — (新增) | — | TVS_3V3 | 3.3V 主轨 TVS 到 GND |
 | — (新增) | — | R8/R9 4.7k | I2C SDA/SCL 上拉 |
-| — (新增) | — | J_DEBUG (2×2) | 烧录排针 RX/TX/GND/5V |
+| — (新增) | — | J_DEBUG (2×2) | ★可选*: 独立 UART0 排针 RX/TX/GND/5V(用 USJ 则不需要) |
 | — (新增) | — | TP_10 (1×10) | 测试点排针 |
 | 舵机脚 | GPIO24/25 | 改 28/29 或复用他脚 | 让位 USB-Serial/JTAG |
 
