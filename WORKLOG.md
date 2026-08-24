@@ -1,4 +1,32 @@
 # vbcpet 工作日志
+## 2026-08-24 (星期一) — 🔧 换新核心后烧录通道恢复: 根因 R12 开路(strap 上拉失效)
+
+### 事件
+- P4C6-Core 主控烧毁(5V 打地)后换新核心, V1 板重烧固件: 换芯后 esptool 全线 `No serial data`(115200/460800 均败, 多轮全灭) → 多轮排查 → **最终根因: R12 开路(4.7kΩ strap 上拉失效), 换新后烧录通道彻底打通**。
+
+### 症状链与排查记录
+- 电源实验: USB 电脑口供电 → 芯片 20ms 级 POWERON 循环复位; 换 2A 充电器 → 半稳(出现过两次干净 `waiting for download`); 再并 470µF 电解 → 完全静默。
+- **触摸实验(关键线索)**: 手指摸 R11(10kΩ, CHIP_PU 附近上拉)→ 持续复位、ESP-ROM 乱码刷屏; 金属/电容引脚短碰 R11 → 单次干净复位 `boot:0x7 DOWNLOAD + waiting for download`。判定板上有高阻浮空节点, 人体耦合可触发复位。
+- esptool 偶发握手成功一次: `Chip is ESP32-P4 (revision v1.3)`, 擦除 OK, 写入 65% 时 `The chip stopped responding`。
+- 时序洞察: **0x45(`Invalid head of packet`, 收到 'E') ≠ No serial data** —— 0x45 = 链路通但 sync 撞上 ROM 打印流; 静默 ≠ 在下载等待(ROM 等待可能超时转 SPI 启动出厂固件, 出厂固件不打印 UART)。
+
+### 根因
+- **R12 = 4.7kΩ ±1% 0603 厚膜电阻**(LCSC `RC0603FR-0715RL` 类/阻值 4.7kΩ), 模组 strap/上拉网络成员。R12 开路 → 关键 strap 引脚浮空 → strap 采样失效 → 芯片从 SPI 启动(出厂固件静默) 或下载窗口时有时无, 表现酷似电源不稳。
+- 修复: 更换 R12 → 上拉恢复 → 稳定进 `DOWNLOAD + waiting for download` → esptool 正常连接烧录。
+
+### 结果 ✅ 烧录 + 启动确认
+- 换 R12 后 esptool 一次通过: bootloader 23552B + partition 3072B + app 941056B @115200, 三镜像 `Hash of data verified`(写入耗时 92.3s)。
+- 拔 strap 飞线后按 RST1 → `boot:0xf (SPI_FAST_FLASH_BOOT)` → ESP-IDF v5.5.3 bootloader → app 正常启动。
+- 启动日志健康: PSRAM 32MB(200MHz), 按键×4 / SK6812×4 / Audio / USB-Serial-JTAG / 控制台全 ready, `Main loop` 运行中。
+- 遗留旧问题(非本次引入): MPU-6500 WHO_AM_I=0x00(期望 0x70, U7 焊接疑点), SD 卡未插, Touch 控制器未探测。
+
+### 教训(下次避免)
+1. **strap/复位上拉电阻坏 ≈ 电源不稳的假象**: 症状全是复位循环/时序敏感/No serial data, 极易误判为供电问题。优先用万用表量 strap 引脚电压 + 查上/下拉电阻阻值, 别急着换电源。
+2. 静默三态判读: (a) 稳定 `waiting for download` = 好, 立即烧; (b) 出厂固件 silent = 需复位进下载; (c) 复位循环间隙 = 假静默。
+3. 调试时手指远离高阻上拉区(10k/4.7k 节点); 需要手动复位用金属镊子/电容引脚短碰, 比手指干净(手指=持续干扰刷屏)。
+4. esptool 参数已定型: 单进程、`--no-stub`、115200、`--connect-attempts 30`、`--before no_reset`(CH340 无 DTR 自动复位); 烧录中途手勿碰板。
+5. V2 板: 对 strap/CHIP_PU 上拉电阻(R11/R12 类)加测试点; 贴装后目检 + 万用表量 strap 电压再上电。
+
 ## 2026-08-18 (周一) — 状态灯 + 屏幕背光排障 + ⚠️ 主控烧毁(5V打地) + V2 路线图
 > ⚠️ **事故**: 调试中 5V 线误碰板子 GND 打火 → 5V 主干塌到 4.2V → P4 核心 100°C+ → 3.3V 对地短路 → **P4C6-Core 主控模块 die 烧毁**(3.3V 轨已短路, 待换新模块)。
 > 复盘: 板上 F1 实为 **0Ω 跳线(替保险丝)**, 主电源无真保险 → 浪涌直灌 P4。**下一代板设计教训已写入 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)。**

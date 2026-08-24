@@ -1,6 +1,6 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-08-18 | 当前阶段: Phase 4 最终板 Bring-up — ⚠️ **主控 P4C6-Core 因 5V 打地短路烧毁**(3.3V 轨短路, 待换模块)。烧录管线已通(strap+RST + 软件 `dl`), SK6812 状态灯完成。**换代升级路线见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)**
+> 更新: 2026-08-24 | 当前阶段: Phase 4 最终板 Bring-up — ✅ **换芯后烧录通道已恢复**(根因 R12 4.7kΩ strap 上拉开路, 更换后新固件烧录并启动成功)。SK6812 状态灯完成。V2 打样主线见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)
 
 ---
 
@@ -288,6 +288,11 @@ vbcpet/
 ## 八、下一步
 
 > ⚠️ **2026-08-18 转折**: V1 板主控 P4C6-Core 因 5V 打地短路烧毁(3.3V 轨短路)。**决定: 直接推进 V2 板重新打样 (P0+P1)**, 固件在现有 P4 开发板并行验证。=> **执行清单见 [hardware/v2-execution-plan.md](hardware/v2-execution-plan.md)**, 设计教训见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)**
+
+### V1 板现状 (2026-08-24 更新)
+
+> ✅ **换芯后烧录通道已恢复**: 根因 **R12 (4.7kΩ strap 上拉) 开路** → 更换后 esptool 三镜像 Hash verified (bootloader 23552B + partition 3072B + app 941056B); 拔 strap 飞线 + RST1 → `boot:0xf SPI_FAST_FLASH_BOOT` → 新固件 (v730fd68-dirty) 正常启动, PSRAM 32MB, 按键/LED/Audio/USJ/控制台全 ready。**V1 板可继续服役直到 V2 到货**。
+> 待办: `test all` 自检记录; MPU-6500 (U7) WHO_AM_I=0x00 焊接重查; SD 卡验证; Touch 地址定位。
 
 ### 主线: V2 板打样 (P0+P1)
 
