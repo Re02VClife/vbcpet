@@ -60,3 +60,6 @@ scratch/
 # ── 嘉立创 EDA 本地工程 (大文件/含缓存, 不入库) ──
 JLC/
 *.epro2
+
+# osptek vendor repo clone (reference only, do not commit)
+_osptek/

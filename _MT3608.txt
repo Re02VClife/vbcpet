@@ -1,0 +1,646 @@
+===PAGE 1===
+ 
+ 
+www.aerosemi.com 
+Aerosemi Proprietary Information.Unauthorized Photocopy and Duplication Prohibited. 
+All Rights Reserved. 
+MT3608 
+2A,High Efficiency 
+1.2MHz Current Mode  Step-Up Converter 
+ 
+MT3608 Rev1.1  
+1 
+FEATURES 
+⚫ Integrated 80mΩ Power MOSFET  
+⚫ 2V to 24V Input Voltage 
+⚫ 1.2MHz Fixed Switching Frequency 
+⚫ Internal 4A Switch Current Limit 
+⚫ Adjustable Output Voltage  
+⚫ Internal Compensation  
+⚫ Up to 28V Output Voltage  
+⚫ Automatic Pulse Frequency Modulation Mode 
+at Light Loads 
+⚫ up to 93% Efficiency  
+⚫ Available in a 6-Pin SOT23-6 Package  
+ 
+APPLICATIONS 
+⚫ Battery-Powered Equipment  
+⚫ Set-Top Boxed 
+⚫ LCD Bais Supply  
+⚫ DSL and Cable Modems and Routers 
+⚫ Networking cards powered from PCI  or PCI 
+express slots 
+ 
+GENERAL DESCRIPTION 
+The MT3608 is a constant frequency, 6-pin SOT23 
+current mode step-up converter intended for small, 
+low power applications. The MT36 08 switches at 
+1.2MHz and allows the use of tiny, low cost 
+capacitors and inductors 2mm or less in height. 
+Internal soft-start results in small inrush current and 
+extends battery life. 
+The MT36 08 features automatic shifting to pulse 
+frequency modulation mode  at light loads. The 
+MT3608 includes under -voltage lockout, current 
+limiting, and thermal overload protection to prevent 
+damage in the event of an output overload. The 
+MT3608 is available in a small 6-pin SOT -23 
+package. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+TYPICAL APPLICATION 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Figure 1. Basic Application Circuit  
+ 
+70
+75
+80
+85
+90
+95
+100
+0 200 400 600 800 1000
+Efficiency(%)
+Load Current(mA)
+VOUT=5V
+VIN=3V
+VIN=3.7V
+VIN=4.2V
+MT3608 COUT
+22μF
+R1
+110k
+1%
+R2
+15k
+1%
+CIN
+22μF
+VIN SW
+EN FB
+GND
+VIN VOUT=5VL 4.7μH D
+ 
+===PAGE 2===
+ 
+ 
+www.aerosemi.com 
+Aerosemi Proprietary Information.Unauthorized Photocopy and Duplication Prohibited. 
+All Rights Reserved. 
+MT3608 Rev1.1  
+2 
+MT3608 2A,High Efficiency ,1.2MHz Step-Up Converter AEROSEMI 
+ABSOLUTE MAXIMUM RATINGS (Note 1) 
+VIN,EN voltages……………………-0.3V to 26V            
+FB Voltages………………................-0.3V to 6V 
+SW Voltage………………………...-0.3V to 30V 
+Power Dissipation………………………...0.6W 
+Thermal Resistance θJC………………..130°C/W 
+Thermal Resistance θJA………………..250°C/W 
+Junction Temperature(Note2)………..........160°C 
+Operating Temperature Range…….-40° C to 85° C             
+Lead Temperature(Soldering,10s)………...300° C 
+Storage Temperature Range……..-65° C to 150° C 
+ESD HBM(Human Body Mode)……………...2kV 
+ESD MM(Machine Mode)………………….200V 
+ 
+PACKAGE/ORDER INFORMATION 
+SW
+GND
+FB EN
+VIN
+NC
+TOP VIEW
+6-LEAD PLASTIC SOT-23
+TJMAX = 160°C, θJA = 250°C/ W, θJC = 130°C/W
+1
+2
+3
+6
+5
+4
+ 
+Order Part Number Package Top Marking 
+MT3608 SOT23-6 B628DC 
+D:Year, C:Week 
+ 
+ 
+PIN DESCRIPTION 
+Pin Name Pin Number Description 
+SW 1 
+Power Switch Output. SW is the drain of the internal MOSFET switch. 
+Connect the power inductor and output rectifier to SW. SW can swing 
+between GND and 28V. 
+GND 2 Ground Pin 
+FB 3 Feedback Input. The FB voltage is 0.6V. Connect a resistor divider to 
+FB. 
+EN 4 
+Regulator On/Off Control Input. A high input at EN turns on the 
+converter, and a low input turns it off. When not used, connect EN to 
+the input supply for automatic startup. 
+VIN 5 Input Supply Pin. Must be locally bypassed. 
+NC 6 No Connect 
+ 
+ 
+===PAGE 3===
+ 
+ 
+www.aerosemi.com 
+Aerosemi Proprietary Information.Unauthorized Photocopy and Duplication Prohibited. 
+All Rights Reserved. 
+MT3608 Rev1.1  
+3 
+MT3608 2A,High Efficiency ,1.2MHz Step-Up Converter AEROSEMI 
+ELECTRICAL CHARACTERISTICS (Note 3) 
+(VIN=VEN=5V,TA = 25° C, unless otherwise noted.) 
+PARAMETER CONDITIONS MIN TYP MAX UNIT 
+Operating Input Voltage  2  24 V 
+Under Voltage Lockout    1.98 V 
+Under Voltage Lockout 
+Hysteresis   100  mV 
+Current (Shutdown) VEN= 0V   0.1 1 µA 
+Quiescent Current (PFM) VFB=0.7V，No switch  100 200 µA 
+Quiescent Current (PWM) VFB=0.5V，switch  1.6 2.2 mA 
+Switching Frequency   1.2  MHz 
+Maximum Duty Cycle VFB = 0V 90   % 
+EN Input High Voltage  1.5   V 
+EN Input Low Voltage    0.4 V 
+FB Voltage  0.588 0.6 0.612 V 
+FB Input Bias Current VFB = 0.6V -50 -10  nA 
+SW On Resistance    80 150 mΩ 
+SW Current Limit  VIN= 5V, Duty cycle=50%  4  A 
+SW Leakage  VSW = 20V   1 μA 
+Thermal Shutdown    155  ℃ 
+ 
+Note 1: Absolute Maximum Ratings are those values beyond which the life of a device may be impaired. 
+Note 2: TJ is calculated from the ambient temperature TA and power dissipation PD according to the 
+following formula: TJ = TA + (PD) x (250° C/W). 
+Note 3: 100% production test at 25° C. Specifications over the temperature range are guaranteed by design 
+and characterization. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+===PAGE 4===
+ 
+ 
+www.aerosemi.com 
+Aerosemi Proprietary Information.Unauthorized Photocopy and Duplication Prohibited. 
+All Rights Reserved. 
+MT3608 Rev1.1  
+4 
+MT3608 2A,High Efficiency ,1.2MHz Step-Up Converter AEROSEMI 
+TYPICAL PERFORMANCE CHARACTERISTICS 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+     
+                            
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+70
+75
+80
+85
+90
+95
+100
+0 200 400 600 800 1000
+Efficiency(%)
+Load Current(mA)
+Efficiency vs. Load Current
+VOUT=5V
+VIN=3V
+VIN=3.7V
+VIN=4.2V
+ 
+4.5
+5
+5.5
+0 200 400 600 800 1000
+Output Voltage(V)
+Load Current(mA)
+Line/Load Regulation
+VOUT=5V
+VIN=3V
+VIN=3.7V
+VIN=4.2V
+ 
+17
+18
+19
+0 100 200 300 400 500
+Output Voltage(V)
+Load Current(mA)
+Line/Load Regulation
+VOUT=18V
+VIN=5V
+VIN=12V
+VIN=16V
+ 
+70
+75
+80
+85
+90
+95
+100
+0 100 200 300 400 500
+Efficiency(%)
+Load Current(mA)
+Efficiency vs. Load Current
+VOUT=18V
+VIN=5V
+VIN=12V
+VIN=16V
+ 
+0.9
+1
+1.1
+1.2
+1.3
+3 3.2 3.4 3.6 3.8 4 4.2
+Frequency(MHz)
+Input Voltage(V)
+Operation Frequency vs. Input Voltage
+VOUT=5V
+ 
+0.9
+1
+1.1
+1.2
+1.3
+4 6 8 10 12 14 16
+Frequency(MHz)
+Input Voltage(V)
+Operation Frequency vs. Input Voltage
+VOUT=18V
+===PAGE 5===
+ 
+ 
+www.aerosemi.com 
+Aerosemi Proprietary Information.Unauthorized Photocopy and Duplication Prohibited. 
+All Rights Reserved. 
+MT3608 Rev1.1  
+5 
+MT3608 2A,High Efficiency ,1.2MHz Step-Up Converter AEROSEMI 
+FUNCTIONAL BLOCK DIAGRAM 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Figure 2. MT3608 Block Diagram 
+ 
+ 
+FUNCTIONAL DESCRIPTION 
+ 
+The MT3608 uses a fixed frequency, peak current 
+mode boost regulator architecture to regulate 
+voltage at the feedback pin. The operation of the 
+MT3608 can be understood by referring to the 
+block diagram of Figure 2. At the start of each 
+oscillator cycle the MOSFET i s turned on through 
+the control circuitry. To prevent sub -harmonic 
+oscillations at duty cycles greater than 50 percent, 
+a stabilizing ramp is added to the output of the 
+current sense amplifier and the result is fed into 
+the negative input of the PWM comparator. When 
+this voltage equals The output voltage of the error 
+amplifier the power MOSFET is turned off. The 
+voltage at the output of the error amplifier is an 
+amplified version of the difference between the 
+0.6V bandgap reference voltage and the feedback 
+voltage. In this way the peak current level keeps 
+the output in regulation. If the feedback voltage 
+starts to drop, the output of the error amplifier 
+increases. These results in more current to flow 
+through the power MOSFET, thus increasing the 
+power delivered to the output. The MT36 08 has 
+internal soft start to limit the amount of input 
+current at startup and to also limit the amount of 
+overshoot on the output.
+ 
+ 
+ 
+ 
+FB
+M1
+Error
+ Amplifier
+PWM
+Compartor Control Logic
+SW
+GND
+Current Sense
+Compartor
+VREF
++
+OSC
++
+-
++
+-
++
+-
+Shutdown 
+Circuitry
+EN
+UVLOVIN
+ 
+===PAGE 6===
+ 
+ 
+www.aerosemi.com 
+Aerosemi Proprietary Information.Unauthorized Photocopy and Duplication Prohibited. 
+All Rights Reserved. 
+MT3608 Rev1.1  
+6 
+MT3608 2A,High Efficiency ,1.2MHz Step-Up Converter AEROSEMI 
+APPLICATIONS INFORMATION 
+ 
+Setting the Output Voltage 
+The internal reference V REF is 0.6V (Typical).The 
+output voltage is divided by a resistor divider,R1 
+and R2 to the FB pin.  The output voltage is given 
+by 
+
+
+
+
+
+ +=
+2
+1
+REFOUT
+R
+R1VV
+ 
+Inductor Selection 
+The recommended values of inductor are 4.7 to 
+22μH. Small size and better efficiency are the 
+major concerns for portable device, such as 
+MT3608 used for mobile phone. The inductor 
+should have low core loss at 1.2MHz and low 
+DCR for better efficiency. To avoid inductor 
+saturation current rating should be considered. 
+ 
+Capacitor Selection 
+Input and output ceramic capacitors of 22μF are 
+recommended for MT36 08 applications. For 
+better voltage filtering, ceramic capacitors with 
+low ESR are recommended. X5R and X7R types 
+are suitable because of their wider voltage and 
+temperature ranges. 
+ 
+Diode Selection 
+Schottky diode is a good choice for MT3608  
+because of its low forward voltage drop and fast 
+reverses recovery. Using Schottky diode can get 
+better efficiency. The high  speed rectification is 
+also a good characteristic of Schottky diode for 
+high switching frequency. Current rating of the 
+diode must meet the root mean square of the peak 
+current and output average current multiplication 
+as following 
+PEAKOUTD II(RMS)I 
+ 
+The diode’ s reverse breakdown voltage should 
+be larger than the output voltage.  
+ 
+Layout Consideration 
+For best performance of the MT36 08, the 
+following guidelines must be strictly followed. 
+➢ Input and Output capacitors should be placed 
+close to the IC and connected to ground 
+plane to reduce noise coupling. 
+➢ The GND should be connected to a strong 
+ground plane for heat sinking and noise 
+protection. 
+➢ Keep the main current traces as possible as 
+short and wide. 
+➢ SW node of DC -DC converter is with high 
+frequency voltage swing. It should be kept at 
+a small area. 
+➢ Place the feedback components as close as 
+possible to the IC and keep away from the 
+noisy devices. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Figure 3. MT3608 Suggested Layout 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+VOUT
+VIA TO VOUT
+VIN
+PIN1
+COUT
+CIN
+L
+R1
+MT3608
+R2
+D
+GND
+Red Trace should be as short as possible 
+ 
+===PAGE 7===
+ 
+ 
+www.aerosemi.com 
+Aerosemi Proprietary Information.Unauthorized Photocopy and Duplication Prohibited. 
+All Rights Reserved. 
+MT3608 Rev1.1  
+7 
+MT3608 2A,High Efficiency ,1.2MHz Step-Up Converter AEROSEMI 
+PACKAGE DESCRIPTION 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+TOP VIEW RECOMMENDED SOLDER PAD LAYOUT
+FRONT VIEW SIDE VIEW
+AAAA
+2.80
+3.00
+1.50
+1.70
+2.60
+3.00
+PIN 1
+EXAMPLE
+TOP MARK
+1.20
+TYP
+0.60
+TYP
+0.95
+BSC
+2.60
+TYP
+0.90
+1.30
+0.30
+0.50 0.95 BSC
+1.45 MAX
+0.00
+0.15
+SEATING PLANE
+0.09
+0.20
+NOTE:
+1.DIMENSIONS ARE IN MILLIMETERS.
+2.DRAWING NOT TO SCALE.
+3.DIMENSIONS ARE INCLUSIVE OF PLATING.
+4.DIMENSIONS ARE EXCLUSIVE OF MOLD FLASH AND METAL BURR.
+SOT23-6
+GAUGE PLANE
+0.25 BSC
+0.30
+0.550°~8°
+.
+ 
+===PAGE 8===
+ 
+ 
+www.aerosemi.com 
+Aerosemi Proprietary Information.Unauthorized Photocopy and Duplication Prohibited. 
+All Rights Reserved. 
+MT3608 Rev1.1  
+8 
+MT3608 2A,High Efficiency ,1.2MHz Step-Up Converter AEROSEMI 
+ 
+ 
+ 
+IMPORTANT NOTICE 
+Xi’an Aerosemi Technology Co.,Ltd reserve the right to make corrections, enhancements, improvements 
+and other changes to its semiconductor products and services. 
+Xi’an Aerosemi Technology Co.,Ltd is not responsible or liable for such altered documentation. Information 
+of third parties may be subject to additional restrictions. 
+Xi’an Aerosemi Technology Co.,Ltd does not assume any responsibility for use of any its products for any 
+particular purpose, nor does Xi’an Aerosemi Technology Co.,Ltd assume any liability arising out of the 
+application or use of any its products or circuits.
+ 
+ 
+  
+Copyright © 2011, Xi’an Aerosemi Technology Co.,Ltd 
+Tel: 0755-82879616  021-50871055  029-88868021        
+Http://www.aerosemi.com 
+E-Mail: sales@aerosemi.com 
+ 
