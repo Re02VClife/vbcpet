@@ -56,6 +56,7 @@ idf_component_register(
         esp_timer
         esp_mm
         esp_lcd_st7102
+        # esp_ldo_regulator 在 IDF 5.5.3 属于 esp_hw_support (components/esp_hw_support/ldo/), 无需单列
 )
 # 保留不编译 (硬件 bring-up 参考):
 #   display_test.c   — 原始 ST7789V bring-up

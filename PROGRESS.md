@@ -1,6 +1,6 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-08-24 | 当前阶段: Phase 4 最终板 Bring-up — ✅ **换芯后烧录通道已恢复**(根因 R12 4.7kΩ strap 上拉开路, 更换后新固件烧录并启动成功)。SK6812 状态灯完成。V2 打样主线见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)
+> 更新: 2026-09-09 | 当前阶段: Phase 4 最终板 Bring-up — 🎉 **屏幕点亮成功**: DSI 后端换用屏厂 osptek 官方驱动 (gitee.com/osptek/4.3-tft-480x800-mipi-st7102), 修复 ① DSI PHY 未供电 (LDO VO3 2.5V) ② PLLREF 时钟选错 ③ 面板未复位先读 ID ④ init 序列非本屏参数 四项根因, 渐变图案 + 背光全通过 (详见 WORKLOG 2026-09-09)。V2 打样主线见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)
 
 ---
 

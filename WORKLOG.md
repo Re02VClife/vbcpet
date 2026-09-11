@@ -1,4 +1,32 @@
 # vbcpet 工作日志
+## 2026-09-09 (星期三) — 🔧 屏驱动换版: kevincoooool 社区组件 → 屏厂 osptek 官方驱动 (3 处实质修正, 编译通过待烧录)
+
+### 背景
+- 屏 YDP430BT009-V1 (ST7102 480×800) 从未点亮过。此前 DSI 强制初始化 (`lcd`) 卡死在 `esp_lcd_new_dsi_bus` busy-wait, 当时归因 "屏未接/lane 未到屏"; 背光链路已毕业 (板端拓扑修复 + 屏内 LED 串损坏待换屏)。
+- 屏与模组本就同厂 (鱼鹰光电 = OSPTEK), 屏厂在 gitee 开源了同型号屏的完整资料与示例: `gitee.com/osptek/4.3-tft-480x800-mipi-st7102` → `versions/YDP430BT009-V1/` (含 ST7102 datasheet、外形图、厂商 init 序列 `GX09C_ST7102+BOE4.3_2LANE_90HZ.c`、ESP32-P4 示例工程、树莓派5/_linux 设备树)。
+
+### 对比结论: 社区组件与屏厂组件同源, 但固件集成层有 3 处实质问题
+1. **DSI PHY 供电缺失 (头号嫌疑)**: ESP32-P4 的 VDD_MIPI_DPHY 必须由内部 LDO_VO3 输出 2.5V, osptek 官方示例在 `esp_lcd_new_dsi_bus` **之前**必调 `esp_ldo_acquire_channel(chan 3, 2500mV)`。旧固件完全没有这一步 → PHY 无电 → PLL 永不锁定 → `esp_lcd_new_dsi_bus` busy-wait 卡死 — 与之前记录的 "DSI HOST busy-wait" 症状完全吻合 (A6=0x500A0000 崩溃点)。
+2. **PHY PLL 参考时钟选错常量**: 旧代码注释写 "显式用 XTAL 40MHz" 但实际写的是 `MIPI_DSI_PHY_PLLREF_CLK_SRC_RC_FAST` (内部 RC ~17.5MHz 高漂移, 不适合做 DPHY PLL 基准)。IDF 5.5.3 对 rev≥v1.3 的官方 DEFAULT 就是 XTAL。已改为 `MIPI_DSI_PHY_PLLREF_CLK_SRC_XTAL`。
+3. **lane 速率 500 → 820 Mbps** (屏厂示例值, GX09C 2LANE 工程同款)。
+4. (附) **init 序列换为屏厂专用序列**: 旧用的 kevincoooool 默认序列参数对应别的屏; 屏厂 GX09C 序列含本屏 BOE 4.3" 面板专用 VGH/VGL(0xB0=22 57..)/Source(0xB7=64 64)/VCOM(0xBF=B4 B4)/Gamma(0xC8/C9)/GIP(0xD7,A3,A6,A7,AC,AD) 参数, 0x11 退 sleep 延时 600ms (旧 120ms 过短), 尾部 0x35 (TE on)。
+
+### 改动清单
+- **vendored 屏厂组件**: `firmware/components/esp_lcd_st7102/` ← osptek 示例组件原样拷入, 仅 2 处 IDF 5.5.3 适配 (`color_space`→`rgb_ele_order` 改名; DPI 宏按 IDF 版本填 `in/out_color_format`)。见组件内 README.md。
+- **依赖切换**: `main/idf_component.yml` 移除 `kevincoooool/esp_lcd_st7102`; `managed_components/` 里旧组件已删; `dependencies.lock` 已更新 (现仅 esp_codec_dev + idf)。
+- **`display_pipeline_dsi.c` 重写**: +`dsi_phy_power_on()` (LDO VO3 2.5V, 建总线前) / lane 820Mbps / XTAL 基准 / `vendor_config.init_cmds` 传屏厂 GX09C 序列 / init 后显式 `disp_on_off(true)`。引脚/背光/SKIP 逻辑不变。
+- **构建脚本**: `_build_osptek.bat` (需 `IDF_PYTHON_ENV_PATH=D:\Espressif\python_env\idf5.5_py3.11_env`, 否则 export.bat 会算错成不存在的 py3.14 环境; bat 内勿写中文注释 — GBK 代码页下乱码执行)。烧录 `_flash_osptek.ps1` (默认 COM10 = CH343, esptool 参数沿用已验证的 no_reset 重试循环)。
+- **编译通过**: `vbcpet.bin` 0xE63E0 字节 (app 分区余 10%), BUILD_EXIT=0。
+
+### 结果 ✅ 屏幕点亮 (2026-09-09 当日完成验证)
+- **烧录链路澄清**: 板子串口是 **CH340=COM22**; 之前一直无应答的 COM10 (CH343) 是**别的设备**(误盯半天)。板载无 DTR 自动复位电路, `default_reset` 无效; 控制台僵死时唯一入口 = **strap (GPIO35→GND, GPIO36→3V3) + RST1** 进下载; 控制台活时 `dl` 免 strap。esptool 单进程 460800 `--before no_reset --after no_reset_stub` 沿用。
+- **验证过程 (三轮烧录迭代)**:
+  1. LDO VO3 OK → `phy_clk_src=XTAL` 直接 `abort()` — `mipi_dsi_ll.h:272`: P4 (rev<3.0) 的 DPHY PLL 参考时钟 mux **仅支持 PLL_F20M/RC_FAST/PLL_F25M, 无 XTAL** → 改 `PLL_F20M` (IDF 对 v1.3 的官方 DEFAULT; 之前 "F20M 锁不定" 实为 PHY 未供电)。
+  2. PLL locked (史上首次!) → `new_dsi_bus ret=0` → 又卡死: 组件构造函数在 `esp_lcd_panel_reset` **之前**就读 ID (0x04 BTA 读), 而 LCD_RST(GPIO20) 上电浮空、屏躺在 reset 状态 → `mipi_dsi_hal_host_gen_read_short_packet` 无超时忙等 (A4=0x500a0000) → 加 `panel_hw_reset_early()` (RST 低 10ms→高→600ms, GX09C 时序) + bring-up 期间跳过 ID 读 (组件内 `#if 0`; LP 写事务不要求面板应答, 不会挂)。
+  3. **终验全链路零卡死**: HW reset → LDO VO3 2500mV OK → PLL locked → `new_dsi_bus ret=0` → DBI IO → ST7102 panel → 屏厂 GX09C 序列 (Sleep Out 600ms → Display On → TE) → DPI 视频 + 渐变图案 → 背光 100% → **屏幕点亮, 显示紫红黄渐变 ✅** (用户实屏确认)。
+- **结论**: 黑屏根因 = 驱动/固件层四项 (① DSI PHY 未供电 ② PLLREF 常量选错 XTAL·RC_FAST ③ 面板未复位先读 ID ④ init 序列非本屏参数), 换 osptek 官方驱动 + 上述修正后解决。8-24 "屏内 LED 串损坏" 结论作废 (灯珠正常, 已更正)。
+- **遗留/后续**: ① 点屏已验证, 可恢复 ID 读做诊断 (组件 `#if 0` 处); ② 若后续图像异常 (花屏/偏色) 再查 FPC lane 交叉 (display_pipeline_dsi.c 头注); ③ GPIO48 1.2V IO 域驱动 MT3608 EN 的 V2 修改清单仍有效; ④ 控制台"僵化"固件 bug 待修 (本次多次复发, strap 是唯一可靠恢复烧录的路径)。
+
 ## 2026-08-24 (星期一) — 🔧 换新核心后烧录通道恢复: 根因 R12 开路(strap 上拉失效)
 
 ### 事件
@@ -41,6 +69,7 @@
 - 电源对照实验: VIN=3.3V 正常(空载 LEDA=22V), VIN=5V(IP5306 VOUT) 完全不工作(SW 直通)——IP5306 5V 轨为"软轨"(USB 输入仅 4.6V、轻载打嗝、无输入电容), 与 1.2MHz 开关负载不匹配。**V1 定案: 背光用 3.3V 供电**(MP2315 硬轨+470µF), 足够满足 12V/40mA。
 - 插屏验证: LEDA=9.7V / LEDK=0.4V(26mA 恒流) / 微亮 → 屏内 LED 串部分损坏(有效 Vf 降至 ~9.3V), **换屏**。板子背光链路毕业。
 - 待办: 换屏后验背光+DSI(lcd); V2 背光修改清单(拓扑 L 位、BL_PWM 避开 GPIO46-50、LEDA 加输出电容, 供电路径别用 IP5306 VOUT)。
+> **✅ 更正 (2026-09-09)**: 屏背光灯珠**复测正常**, 8-24 "屏内 LED 串部分损坏/微亮 → 换屏" 结论**作废** — 当时的 26mA/微亮读数更可能出现在恒流环非设计工作点, 黑屏主因就是**驱动/固件层问题**(DSI PHY 未供电、PLLREF 误选 RC_FAST、lane 速率、init 序列非本屏参数, 详见 2026-09-09 条目)。换屏计划取消, 直接烧新驱动验证。
 ### 教训(下次避免)
 1. **strap/复位上拉电阻坏 ≈ 电源不稳的假象**: 症状全是复位循环/时序敏感/No serial data, 极易误判为供电问题。优先用万用表量 strap 引脚电压 + 查上/下拉电阻阻值, 别急着换电源。
 2. 静默三态判读: (a) 稳定 `waiting for download` = 好, 立即烧; (b) 出厂固件 silent = 需复位进下载; (c) 复位循环间隙 = 假静默。
