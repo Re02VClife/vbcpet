@@ -1,6 +1,40 @@
 # vbcpet 工作日志
 ## 2026-09-09 (星期三) — 🎊 Live2D 推流上屏成功! 全链路打通 (下午-晚间)
 
+### 📌 当前状态快照 (2026-09-09 晚, Phase 4 最终板)
+
+**✅ 已验证可用:**
+| 项 | 状态 | 说明 |
+|----|------|------|
+| 烧录 | ✅ | strap(GPIO35→GND,GPIO36→3V3)+RST1 进下载 → esptool 460800 单进程; `dl` 需控制台存活 |
+| 屏幕点亮 | ✅ | 开机自动初始化 (SKIP_DISPLAY=n), 无需控制台; DSI 2-lane 820Mbps PLL_F20M |
+| JPEG 解码→刷屏 | ✅ | PPA 硬解 480×800 RGB565 → PSRAM fb → DPI, 首次在此板验证通过 |
+| Live2D 推流 | ✅ | stream_final.py → COM8@2M → demux v2 → 屏, ~42KB/帧 @2.5fps, 颜色正常 |
+| 串口日志 | ✅ | ESP_LOG @2M 经推流链路回传 (streamer [FW] 前缀中继) |
+| 外设 bring-up | ✅ | 按键/SK6812/Audio/MPU(疑似虚焊)/USB-host 初始化正常; Touch 未接/SD 未插 |
+
+**⚠️ 已知问题 (按优先级):**
+1. **控制台僵化**: UART0 控制台任务复位后 1-3 分钟内冻结 (今日复发 4+ 次), `dl`/命令全失效 → 只能 strap 烧录。**待修 (固件 bug, 疑与 VFS/UART RX 相关)**
+2. **残留噪点**: 画面偶发雪点 — 若持续, 试 lane 820→500Mbps (信号余量) 或查 FPC 接触
+3. **帧率 2.5fps**: 瓶颈 = Playwright 截图延迟 (~300ms) + 2M 链路带宽; 可调 quality/delay/viewport
+4. **清晰度**: quality 70 仍有 JPEG 软化, 提高 quality 会降帧率 (权衡)
+5. MPU-6500 WHO_AM_I=0x00 (U7 焊接疑点, 旧问题)
+
+**📋 下一步建议:**
+1. 修控制台僵化 (console_task 卡死原因排查 — 疑点: UART RX VFS 短读/换行处理)
+2. 帧率优化: 截图 → JPEG 编码 → 串口 三段流水线化 (当前串行)
+3. Claude 交互桥接回 serial_bridge (say/面板/按键授权走新链路)
+4. 触摸控制器接上 (I2C 探测)
+5. V2 板打样回来后: 背光 PWM 换脚 (GPIO48→非1.2V域), 保留本次全部驱动修复
+
+**🔧 本次新增/修改的文件:**
+- 固件: `display_pipeline_dsi.c`(重写) `channel_demux.c`(v2 重写) `transport_uart.c`(新) `transport.h` `vbcpet_main.c` `display_pipeline.c` `CMakeLists.txt` `Kconfig.projbuild` `components/esp_lcd_st7102/`(vendored osptek)
+- PC: `pc-host/stream_final.py`(新) `_send_red.py`(测试)
+- 脚本: `_build_osptek.bat` `_flash_osptek.ps1` `_sync_flash3.ps1`
+- 配置: `sdkconfig`(TRANSPORT_UART/CONSOLE@2M/FREERTOS_HZ=1000/SKIP_DISPLAY=n) `dependencies.lock` `idf_component.yml`
+
+---
+
 > 承接上文屏驱动换版。屏幕点亮后, 同日完成 **Live2D 实时推流上屏**, 过程中又挖出并修掉两个深层 bug。
 
 ### 推流链路重构 (USJ → UART0)
