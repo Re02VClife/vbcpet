@@ -25,6 +25,9 @@ static uint8_t *g_fb = NULL;  /* 单帧缓冲 */
 #define JPEG_DEC_OUT_FMT  JPEG_DECODE_OUT_FORMAT_RGB565
 #endif
 
+/* 颜色修正 v2: 面板 RGB 顺序无改善后, 改解码器输出的 R/B 顺序 (JPEG_DEC_RGB_ELEMENT_ORDER_BGR) */
+#define JPEG_DEC_RGB_ORDER  JPEG_DEC_RGB_ELEMENT_ORDER_BGR
+
 int display_pipeline_init(void)
 {
     ESP_LOGI(TAG, "Initializing display pipeline (%dx%d)...", LCD_W, LCD_H);
@@ -69,7 +72,7 @@ int display_pipeline_feed_jpeg(const uint8_t *data, size_t len)
 
     jpeg_decode_cfg_t dec_cfg = {
         .output_format = JPEG_DEC_OUT_FMT,
-        .rgb_order     = JPEG_DEC_RGB_ELEMENT_ORDER_RGB,
+        .rgb_order     = JPEG_DEC_RGB_ORDER,
         .conv_std      = JPEG_YUV_RGB_CONV_STD_BT601,
     };
     uint32_t out_len = 0;
@@ -107,7 +110,7 @@ void display_pipeline_draw_boot_screen(const uint8_t *jpeg_data, size_t len)
 
     jpeg_decode_cfg_t dec_cfg = {
         .output_format = JPEG_DEC_OUT_FMT,
-        .rgb_order     = JPEG_DEC_RGB_ELEMENT_ORDER_RGB,
+        .rgb_order     = JPEG_DEC_RGB_ORDER,
         .conv_std      = JPEG_YUV_RGB_CONV_STD_BT601,
     };
     uint32_t out_len = 0;

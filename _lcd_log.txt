@@ -1,0 +1,186 @@
+﻿W (197501) bringup: lcd: forcing DSI init ...
+W (197501) disp-dsi: lcd: FORCED DSI init (bypass SKIP_DISPLAY)
+I (197501) disp-dsi: Initializing MIPI DSI backend (480x800) [osptek driver]...
+I (197507) disp-dsi: Backlight PWM GPIO48 duty=1023/1023
+I (197512) disp-dsi: DSI PHY power LDO_VO3 2500mV: OK(err=0)
+E (197517) lcd.dsi: VBCPET step2d: RCC block1 done
+E (197521) lcd.dsi: VBCPET step1: enable phy_clk_src=18
+E (197526) lcd.dsi: VBCPET step2: phy_clk_src enabled
+E (197531) lcd.dsi: VBCPET step2b: cfg_clk enable ret=0
+E (197536) lcd.dsi: VBCPET step2c: RCC block1 enter
+
+abort() was called at PC 0x40027d1b on core 0
+Core  0 register dump:
+MEPC    : 0x4ff0b690  RA      : 0x4ff0b642  SP      : 0x4ff2fc70  GP      : 0x4ff17300  
+TP      : 0x4ff2ffa0  T0      : 0x37363534  T1      : 0x7271706f  T2      : 0x33323130  
+S0/FP   : 0x00000004  S1      : 0x4ff2fcd4  A0      : 0x4ff2fc9c  A1      : 0x4ff2fcd2  
+A2      : 0x00000000  A3      : 0x4ff2fcc9  A4      : 0x00000001  A5      : 0x4ff1c000  
+A6      : 0x00000000  A7      : 0x76757473  S2      : 0x4ff1c950  S3      : 0x00000000  
+S4      : 0x500e6000  S5      : 0x00000001  S6      : 0x00000012  S7      : 0x00000000  
+S8      : 0x00000001  S9      : 0x00000000  S10     : 0x00000000  S11     : 0x00000000  
+T3      : 0x6e6d6c6b  T4      : 0x6a696867  T5      : 0x66656463  T6      : 0x62613938  
+MSTATUS : 0x00011880  MTVEC   : 0x4ff00003  MCAUSE  : 0x00000002  MTVAL   : 0x00000000  
+MHARTID : 0x00000000  
+
+Stack memory:
+4ff2fc70: 0x4ff1c950 0x4ff2fcec 0x4ff2fcd0 0x4ff1435c 0x00000000 0x00000000 0x4007b4a4 0x4ff19958
+4ff2fc90: 0x4ff2fcd4 0x4ff19974 0x4ff2fcd0 0x726f6261 0x20292874 0x20736177 0x6c6c6163 0x61206465
+4ff2fcb0: 0x43502074 0x34783020 0x37323030 0x20623164 0x63206e6f 0x2065726f 0x00000030 0x4ff20000
+4ff2fcd0: 0x00000030 0x32303034 0x62316437 0x00000000 0x4ff1c950 0x4ff2c884 0x4ff2fe00 0x40027d1e
+4ff2fcf0: 0x4007b31c 0x00000645 0x40009ac6 0x40028326 0x00000000 0x00000000 0x00000005 0x4ff2fd2c
+4ff2fd10: 0x40074058 0x00000003 0x00000000 0x4000d7b6 0x00000000 0x00000000 0x00000000 0x00030388
+4ff2fd30: 0x40074058 0x00000003 0x000009c4 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000
+4ff2fd50: 0x00000000 0x00000000 0x00000000 0x00000003 0x00000000 0x40074000 0x00000005 0x4000d830
+4ff2fd70: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000
+4ff2fd90: 0x00000000 0x4ff2fe1c 0x40074058 0x4ff14250 0x00000000 0x4ff2fe1c 0x40074058 0x40060f6c
+4ff2fdb0: 0x00000000 0x4ff2fe2c 0x40074318 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000
+4ff2fdd0: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x4ff2fe1c 0x40074318 0x4ff141a4
+4ff2fdf0: 0x00000000 0x4ff2fe2c 0x40074934 0x4ff2fe1c 0x00000000 0x00000002 0x00000012 0x444d0000
+4ff2fe10: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000005 0x4000db84
+4ff2fe30: 0x4007476c 0x00000645 0x40009928 0x4000e2a8 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5
+4ff2fe50: 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5
+4ff2fe70: 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0x0064636c
+4ff2fe90: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000
+4ff2feb0: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x0064636c
+4ff2fed0: 0x6c6c6120 0xa5a5a500 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5
+4ff2fef0: 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0x4ff0ca62 0x00000000 0x00000000 0x4ff17300
+4ff2ff10: 0x4ff2ffa0 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x4000dcb2 0x00000000
+4ff2ff30: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000
+4ff2ff50: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x4ff0ca6e
+4ff2ff70: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000
+4ff2ff90: 0x00000000 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0x00000001 0x4ff2dfc4 0x4ff2dfc4 0x00000000
+4ff2ffb0: 0x00000000 0x00000000 0xa5a5a5a5 0xa5a5a5a5 0xa5a5a5a5 0x00000160 0x4ff2f6b0 0x0002fd38
+4ff2ffd0: 0x4ff1af24 0x4ff1af24 0x4ff2ffc8 0x4ff1af1c 0x00000015 0x4ff2a1e0 0x4ff2a1e0 0x4ff2ffc8
+4ff2fff0: 0x00000000 0x00000004 0x4ff2dfc4 0x752d7262 0x6d632d70 0x00000064 0x00000000 0x00000000
+4ff30010: 0x4ff2ffc0 0x00000004 0x00000000 0x00000000 0x00000000 0x0000000b 0x4ff1d0c4 0x4ff1d12c
+4ff30030: 0x4ff1d194 0x00000000 0x00000000 0x00000001 0x00000000 0x00000000 0x00000000 0x4fc0af14
+4ff30050: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000
+
+
+
+ELF file SHA256: bd745a1ab
+
+Rebooting...
+ESP-ROM:esp32p4-eco2-20240710
+Build:Jul 10 2024
+rst:0xc (SW_CPU_RESET),boot:0xf (SPI_FAST_FLASH_BOOT)
+Core0 Saved PC:0x4ff04496
+Core1 Saved PC:0x4ff045de
+SPI mode:DIO, clock div:2
+load:0x4ff33ce0,len:0x15e4
+load:0x4ff29ed0,len:0xe28
+load:0x4ff2cbd0,len:0x3560
+entry 0x4ff29eda
+I (30) boot: ESP-IDF v5.5.3 2nd stage bootloader
+I (31) boot: compile time Aug 17 2026 11:22:48
+I (31) boot: Multicore bootloader
+I (32) boot: chip revision: v1.3
+I (34) boot: efuse block revision: v0.3
+I (37) boot.esp32p4: SPI Speed      : 40MHz
+I (41) boot.esp32p4: SPI Mode       : DIO
+I (45) boot.esp32p4: SPI Flash Size : 16MB
+I (49) boot: Enabling RNG early entropy source...
+I (53) boot: Partition Table:
+I (56) boot: ## Label            Usage          Type ST Offset   Length
+I (62) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (69) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (75) boot:  2 factory          factory app      00 00 00010000 00100000
+I (82) boot: End of partition table
+I (85) esp_image: segment 0: paddr=00010020 vaddr=40070020 size=6a668h (435816) map
+I (177) esp_image: segment 1: paddr=0007a690 vaddr=30100000 size=00068h (   104) load
+I (179) esp_image: segment 2: paddr=0007a700 vaddr=4ff00000 size=05918h ( 22808) load
+I (187) esp_image: segment 3: paddr=00080020 vaddr=40000020 size=60ff8h (397304) map
+I (266) esp_image: segment 4: paddr=000e1020 vaddr=4ff05918 size=111b0h ( 70064) load
+I (282) esp_image: segment 5: paddr=000f21d8 vaddr=4ff16b00 size=041bch ( 16828) load
+I (287) esp_image: segment 6: paddr=000f639c vaddr=50108080 size=00020h (    32) load
+I (294) boot: Loaded app from partition at offset 0x10000
+I (294) boot: Disabling RNG early entropy source...
+I (310) hex_psram: vendor id    : 0x0d (AP)
+I (310) hex_psram: Latency      : 0x01 (Fixed)
+I (310) hex_psram: DriveStr.    : 0x00 (25 Ohm)
+I (311) hex_psram: dev id       : 0x03 (generation 4)
+I (315) hex_psram: density      : 0x07 (256 Mbit)
+I (320) hex_psram: good-die     : 0x06 (Pass)
+I (324) hex_psram: SRF          : 0x02 (Slow Refresh)
+I (329) hex_psram: BurstType    : 0x00 ( Wrap)
+I (333) hex_psram: BurstLen     : 0x03 (2048 Byte)
+I (337) hex_psram: BitMode      : 0x01 (X16 Mode)
+I (342) hex_psram: Readlatency  : 0x04 (14 cycles@Fixed)
+I (347) hex_psram: DriveStrength: 0x00 (1/1)
+I (351) MSPI Timing: Enter psram timing tuning
+I (528) esp_psram: Found 32MB PSRAM device
+I (529) esp_psram: Speed: 200MHz
+I (530) hex_psram: psram CS IO is dedicated
+I (530) cpu_start: Multicore app
+I (1480) esp_psram: SPI SRAM memory test OK
+I (1491) cpu_start: GPIO 38 and 37 are used as console UART I/O pins
+I (1491) cpu_start: Pro cpu start user code
+I (1491) cpu_start: cpu freq: 360000000 Hz
+I (1493) app_init: Application information:
+I (1497) app_init: Project name:     vbcpet
+I (1501) app_init: App version:      c37f78d-dirty
+I (1505) app_init: Compile time:     Sep  9 2026 09:44:08
+I (1511) app_init: ELF file SHA256:  bd745a1ab...
+I (1515) app_init: ESP-IDF:          v5.5.3
+I (1519) efuse_init: Min chip rev:     v0.0
+I (1523) efuse_init: Max chip rev:     v1.99 
+I (1527) efuse_init: Chip rev:         v1.3
+I (1531) heap_init: Initializing. RAM available for dynamic allocation:
+I (1537) heap_init: At 4FF1CB10 len 0001E4B0 (121 KiB): RETENT_RAM
+I (1543) heap_init: At 4FF3AFC0 len 00004BF0 (18 KiB): RAM
+I (1548) heap_init: At 4FF40000 len 00060000 (384 KiB): RAM
+I (1554) heap_init: At 501080A0 len 00007F60 (31 KiB): RTCRAM
+I (1559) heap_init: At 30100068 len 00001F98 (7 KiB): TCM
+I (1564) esp_psram: Adding pool of 32768K of PSRAM memory to heap allocator
+I (1572) spi_flash: detected chip: generic
+I (1575) spi_flash: flash io: dio
+I (1578) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (1584) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (1591) main_task: Started on CPU0
+I (1594) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations
+I (1602) main_task: Calling app_main()
+I (1605) vbcpet: vbcpet booting on esp32p4 (IDF v5.5.3)
+I (1618) tr-usb: USB Serial JTAG ready (rx=32768 tx=16384)
+I (1618) disp: Initializing display pipeline (480x800)...
+W (1620) disp-dsi: Display backend SKIPPED (SKIP_DISPLAY=y) — panel=NULL; 'lcd' 强制点屏
+I (1638) disp: FB allocated: 768000 B
+I (1639) disp: Display pipeline ready (single buffer)
+I (1642) disp: Boot screen displayed
+I (1642) txtin: Text input ready
+I (1643) engine: Engine initialized
+I (1646) demux: Channel demuxer ready (line=256 jpeg_buf=65536)
+I (1652) text: Text renderer ready (ASCII + CJK 7548 glyphs)
+I (1657) bringup: Peripheral bring-up starting…
+W (1663) i2c.master: Please note i2c asynchronous is only used for specific scenario currently. It's experimental for other users because user cannot get bus error from API. And It's not compatible with ``i2c_master_probe``. If user makes sure there won't be any error on bus and tested with no problem, this message can be ignored.
+I (1691) i2c-bus: I2C bus ready (SDA=8 SCL=21)
+I (1695) btns: Key 'yes' GPIO1 ready
+I (1698) btns: Key 'no' GPIO2 ready
+I (1701) btns: Key 'yes_always' GPIO3 ready
+I (1705) btns: Key 'panel' GPIO4 ready
+I (1710) leds: SK6812 x4 ready (GPIO51)
+I (1715) audio: PA off
+I (1716) audio: Audio ready: 48000Hz 16-bit stereo (BCLK=22 WS=7 DOUT=23 DIN=6 PA_EN=46)
+W (1723) mpu: WHO_AM_I = 0x00 (期望 0x70) — 可能是 MPU-6050 或未焊好
+I (1729) mpu: MPU-6500 ready (I2C 0x68, INT GPIO47)
+I (1734) nfc: NT3H2111 ready (I2C 0x55, FD GPIO11)
+E (1740) vfs_fat_sdmmc: sdmmc_card_init failed (0x105).
+E (1744) sd: SD mount fail: 261
+W (1746) bringup: SD init failed (卡未插或硬件问题)
+I (1752) servo: Servo0 GPIO24 -> center
+I (1755) servo: Servo1 GPIO25 -> center
+E (1809) i2c.master: I2C software timeout
+E (1809) i2c.master: probe device timeout. Please check if xfer_timeout_ms and pull-ups are correctly set up
+E (1861) i2c.master: I2C software timeout
+E (1861) i2c.master: probe device timeout. Please check if xfer_timeout_ms and pull-ups are correctly set up
+E (1913) i2c.master: I2C software timeout
+E (1913) i2c.master: probe device timeout. Please check if xfer_timeout_ms and pull-ups are correctly set up
+E (1965) i2c.master: I2C software timeout
+E (1965) i2c.master: probe device timeout. Please check if xfer_timeout_ms and pull-ups are correctly set up
+E (2017) i2c.master: I2C software timeout
+E (2017) i2c.master: probe device timeout. Please check if xfer_timeout_ms and pull-ups are correctly set up
+E (2069) i2c.master: I2C software timeout
+E (2069) i2c.master: probe device timeout. Please check if xfer_timeout_ms and pull-ups are correctly set up
+W (2071) touch: Touch 控制器未探测到 (地址待确认, 见 README 打样疑点)
+I (2109) usbh: USB host installed (FS OTG, peripheral_map=BIT1)
+I (2109) bringup: Bring-up done. UART0 控制台: help / test <name> / test all / led <state> / brightness <0-100>
+I (2114) vbcpet: Main loop

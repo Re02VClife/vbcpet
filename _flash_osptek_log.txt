@@ -1,0 +1,1130 @@
+OSPTEK-FLASH 2026-09-15T17:26:24.9863102+08:00 port=COM8
+attempt 1 @ 0s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 2 @ 3s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 3 @ 7s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 4 @ 10s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 5 @ 14s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 6 @ 17s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 7 @ 20s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 8 @ 24s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 9 @ 27s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 10 @ 31s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 11 @ 34s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 12 @ 37s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 13 @ 41s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 14 @ 44s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 15 @ 48s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 16 @ 51s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 17 @ 54s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 18 @ 58s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 19 @ 61s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 20 @ 64s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 21 @ 68s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 22 @ 71s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 23 @ 74s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 24 @ 78s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 25 @ 81s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 26 @ 85s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 27 @ 88s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 28 @ 91s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 29 @ 95s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 30 @ 98s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 31 @ 101s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 32 @ 105s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 33 @ 108s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 34 @ 112s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 35 @ 115s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 36 @ 118s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 37 @ 122s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 38 @ 125s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 39 @ 128s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 40 @ 132s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting......
+Chip is ESP32-P4 (revision v1.3)
+Features: High-Performance MCU
+Crystal is 40MHz
+MAC: e8:f6:0a:e3:d5:f9
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00002000 to 0x00007fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+Flash will be erased from 0x00010000 to 0x000f0fff...
+SHA digest in image updated
+Compressed 22976 bytes to 14267...
+Writing at 0x00002000... (100 %)
+Wrote 22976 bytes (14267 compressed) at 0x00002000 in 0.5 seconds (effective 366.6 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 103...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (103 compressed) at 0x00008000 in 0.0 seconds (effective 823.9 kbit/s)...
+Hash of data verified.
+Compressed 917568 bytes to 450859...
+Writing at 0x00010000... (3 %)
+Writing at 0x0001c17e... (7 %)
+Traceback (most recent call last):
+  File "D:\Espressif\python_env\idf5.5_py3.11_env\Lib\site-packages\esptool\__init__.py", line 1381, in _main
+    main()
+  File "D:\Espressif\python_env\idf5.5_py3.11_env\Lib\site-packages\esptool\__init__.py", line 1085, in main
+    operation_func(esp, args)
+  File "D:\Espressif\python_env\idf5.5_py3.11_env\Lib\site-packages\esptool\cmds.py", line 668, in write_flash
+    esp.flash_defl_block(block, seq, timeout=timeout)
+  File "D:\Espressif\python_env\idf5.5_py3.11_env\Lib\site-packages\esptool\loader.py", line 127, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Espressif\python_env\idf5.5_py3.11_env\Lib\site-packages\esptool\loader.py", line 1315, in flash_defl_block
+    self.check_command(
+  File "D:\Espressif\python_env\idf5.5_py3.11_env\Lib\site-packages\esptool\loader.py", line 547, in check_command
+    val, data = self.command(op, data, chk, timeout=timeout)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Espressif\python_env\idf5.5_py3.11_env\Lib\site-packages\esptool\loader.py", line 477, in command
+    p = self.read()
+        ^^^^^^^^^^^
+  File "D:\Espressif\python_env\idf5.5_py3.11_env\Lib\site-packages\esptool\loader.py", line 410, in read
+    return next(self._slip_reader)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+A fatal error occurred: The chip stopped responding.
+
+retry (hashes=2, fatal=True)
+attempt 41 @ 139s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 42 @ 142s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 43 @ 146s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 44 @ 149s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 45 @ 152s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 46 @ 156s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 47 @ 159s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 48 @ 162s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 49 @ 166s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 50 @ 169s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 51 @ 173s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 52 @ 176s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 53 @ 179s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 54 @ 183s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 55 @ 186s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 56 @ 189s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 57 @ 193s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 58 @ 196s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 59 @ 200s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 60 @ 203s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 61 @ 206s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 62 @ 210s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 63 @ 213s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 64 @ 216s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 65 @ 220s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 66 @ 223s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 67 @ 227s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 68 @ 230s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 69 @ 233s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 70 @ 237s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 71 @ 240s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 72 @ 244s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 73 @ 247s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 74 @ 250s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 75 @ 254s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 76 @ 257s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 77 @ 260s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 78 @ 264s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 79 @ 267s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 80 @ 271s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 81 @ 274s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 82 @ 277s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 83 @ 281s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 84 @ 284s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 85 @ 287s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 86 @ 291s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 87 @ 294s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 88 @ 298s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 89 @ 301s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 90 @ 304s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 91 @ 308s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 92 @ 311s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 93 @ 314s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 94 @ 318s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 95 @ 321s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 96 @ 324s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 97 @ 328s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 98 @ 331s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 99 @ 335s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 100 @ 338s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 101 @ 341s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 102 @ 345s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..................
+
+A fatal error occurred: Failed to connect to ESP32-P4: No serial data received.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+retry (hashes=0, fatal=True)
+attempt 103 @ 348s
+esptool.py v4.12.dev1
+Serial port COM8
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting........
+Chip is ESP32-P4 (revision v1.3)
+Features: High-Performance MCU
+Crystal is 40MHz
+MAC: e8:f6:0a:e3:d5:f9
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00002000 to 0x00007fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+Flash will be erased from 0x00010000 to 0x000f0fff...
+SHA digest in image updated
+Compressed 22976 bytes to 14267...
+Writing at 0x00002000... (100 %)
+Wrote 22976 bytes (14267 compressed) at 0x00002000 in 0.5 seconds (effective 370.4 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 103...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (103 compressed) at 0x00008000 in 0.0 seconds (effective 858.2 kbit/s)...
+Hash of data verified.
+Compressed 917568 bytes to 450859...
+Writing at 0x00010000... (3 %)
+Writing at 0x0001c17e... (7 %)
+Writing at 0x00028fea... (10 %)
+Writing at 0x0003255d... (14 %)
+Writing at 0x0003df2e... (17 %)
+Writing at 0x0004676f... (21 %)
+Writing at 0x0004ef20... (25 %)
+Writing at 0x00056d72... (28 %)
+Writing at 0x0005e779... (32 %)
+Writing at 0x00066c14... (35 %)
+Writing at 0x0006e3e8... (39 %)
+Writing at 0x00076001... (42 %)
+Writing at 0x0007d419... (46 %)
+Writing at 0x0008434f... (50 %)
+Writing at 0x0008bc7c... (53 %)
+Writing at 0x00093850... (57 %)
+Writing at 0x0009a290... (60 %)
+Writing at 0x000a1467... (64 %)
+Writing at 0x000a9aec... (67 %)
+Writing at 0x000b079c... (71 %)
+Writing at 0x000b8b86... (75 %)
+Writing at 0x000c0400... (78 %)
+Writing at 0x000c5a8d... (82 %)
+Writing at 0x000ce0e3... (85 %)
+Writing at 0x000d4b67... (89 %)
+Writing at 0x000dc184... (92 %)
+Writing at 0x000e2e5f... (96 %)
+Writing at 0x000ea4da... (100 %)
+Wrote 917568 bytes (450859 compressed) at 0x00010000 in 10.8 seconds (effective 679.8 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Staying in flasher stub.
+
+FLASH-OK hashes=3
