@@ -222,7 +222,7 @@ static int dsi_backend_start(void)
     };
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = PIN_LCD_RST,
-        .rgb_ele_order  = LCD_RGB_ELEMENT_ORDER_RGB,
+        .rgb_ele_order  = LCD_RGB_ELEMENT_ORDER_RGB,   /* 面板侧保持 RGB (BGR 实测无改善) */
         .bits_per_pixel = 16,           /* RGB565, colmod 0x55 */
         .vendor_config  = &vendor_cfg,
     };

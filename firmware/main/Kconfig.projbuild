@@ -46,6 +46,19 @@ menu "vbcpet Display"
             peripherals (buttons/LED/audio/IMU/SD/servo/NFC/USB) and the UART0
             console when the display is not connected or its init hangs.
 
+    config VBCPET_TRANSPORT_UART
+        bool "Stream transport over UART0/CH340 (console must be NONE)"
+        default n
+        help
+            V1 板 USJ(GPIO24/25) 被舵机 PWM 占用, 推流改走 CH340 UART0。
+            勾选后 app_main 用 UART 传输; 需同时设 CONFIG_ESP_CONSOLE_NONE
+            并跳过 bringup 控制台 (否则两个读者抢 UART0 字节)。
+
+    config VBCPET_UART_BAUDRATE
+        int "UART transport baudrate"
+        default 2000000
+        depends on VBCPET_TRANSPORT_UART
+
 endmenu
 
 menu "vbcpet Bring-up Debug"

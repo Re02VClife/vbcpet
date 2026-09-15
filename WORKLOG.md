@@ -1,4 +1,40 @@
 # vbcpet 工作日志
+## 2026-09-09 (星期三) — 🎊 Live2D 推流上屏成功! 全链路打通 (下午-晚间)
+
+> 承接上文屏驱动换版。屏幕点亮后, 同日完成 **Live2D 实时推流上屏**, 过程中又挖出并修掉两个深层 bug。
+
+### 推流链路重构 (USJ → UART0)
+- 发现 V1 板 **USJ(GPIO24/25) 物理上被设计成舵机 PWM 输出** (final-pinmap.md:141), 推流原走 USB-Serial-JTAG 的路径在最终板不存在。
+- 方案: **UART0/CH340 @2M 复用链路** — 新增 `transport_uart.c` (Kconfig: VBCPET_TRANSPORT_UART + VBCPET_UART_BAUDRATE=2000000, UART_SCLK_XTAL 精确分频), app_main 按编译开关选择 transport。
+- console 让位: CONFIG_ESP_CONSOLE_NONE=y + bringup_start_console() 跳过 (两个读者会抢 UART0 字节)。
+- 帧协议不变: `FRAME:%08x\n` + JPEG (≤64KB, demux 缓冲上限)。
+
+### 烧录基础设施 (本次沉淀)
+- 板载串口实为 **CH340=COM22/COM8** (重插后端口号会变!); COM10 (CH343) 是**别的设备**, 曾误盯数小时。
+- 板载无 DTR 自动复位电路 → esptool `default_reset` 无效; 进下载模式两条路: ① 控制台 `dl` (固件僵死时无效) ② **strap GPIO35→GND + GPIO36→3V3 + RST1** (最可靠)。
+- 控制台"僵化"bug 当天复发 4+ 次: 控制台在复位后只存活约 1-3 分钟。**strap 是唯一可靠烧录入口**, 相关脚本: `_build_osptek.bat` / `_flash_osptek.ps1` / `_sync_flash3.ps1`。
+- 大坑: 残留后台进程占串口 (streamer/monitor/僵尸 watcher) 会把 esptool 全部挡成 `port busy` 或 `No serial data` — 烧录前必须清场 (`Get-CimInstance Win32_Process` 查 python/powershell 占用)。
+
+### 🐛 挖出深层 bug #1: channel_demux 每次 poll 只读 1 字节
+- `channel_demux_poll()` 旧版 `recv(&ch, 1, 0)` + 主循环 `vTaskDelay(1)` (10ms tick) → 消费速度 ≈ **100-1000 B/s**, 而 2M 推流 200KB/s → 64KB RX ring 1 秒溢出, **99.9% 帧数据被丢**, 帧头永远凑不齐。
+- 此架构为旧 USJ 低速时代设计, 最终板上从未被真正压测过。
+- **修复**: 批量排空 (每 poll 最多 16×512B, 逐字节喂状态机; 大载荷转 read_n 批量收)。
+
+### 🐛 挖出深层 bug #2: 帧协议失步 (按行解析遇到二进制)
+- JPEG 二进制随机含 0x0A, v1 demux 按行解析: 一旦错过帧头 (波特率竞态/启动时序), 帧头前垃圾把行弄脏, `FRAME:` 永远不在行首 → **解析器永久失步**, JPEG 载荷被当文字灌给引擎 (`CTRL:{"t":"user_text","text":"乱码"}` 每秒数百条, 实测日志)。
+- **修复**: demux v2 二进制自同步 — 在字节流**任意位置**扫描 `FRAME:` 6 字节魔数 (JPEG 误同步概率 ≈2^-48), 命中后读 8 位 hex 长度 + 载荷, 失步最多损失一帧。实测启动期失步 4 条乱码行后自动锁定, 之后零误码。
+
+### 🎨 颜色修正 (两轮实验)
+- 面板侧 BGR (LCD_RGB_ELEMENT_ORDER_BGR): 实测无改善 → 回退 RGB。
+- **解码器侧 BGR** (JPEG_DEC_RGB_ELEMENT_ORDER_BGR, display_pipeline.c): ✅ 颜色正常。
+- 噪点: JPEG quality 55→70 后明显减少 (压缩伪影成分为主)。
+
+### ✅ 最终状态 (2026-09-09 晚)
+- **Live2D (Hiyori) 实时动画上屏**, 颜色正常, 画质可用。
+- 推流: `pc-host/stream_final.py --port COM8 --baud 2000000 --quality 70`, ~42KB/帧 @ 2.5fps (瓶颈: Playwright 截图延迟 + 2M 链路带宽)。
+- 固件: 开机自动初始化屏幕 (SKIP_DISPLAY=n), 无需控制台干预; [FW] 日志经推流链路回传 (streamer 中继打印)。
+- 待优化 (不阻塞): ① 帧率 2.5→8fps (降 quality/缩 viewport/截图提速) ② 残留噪点观察 (若为 DSI 误码试 lane 820→500) ③ 控制台僵化 bug 修复 ④ 颜色/触控细节微调。
+
 ## 2026-09-09 (星期三) — 🔧 屏驱动换版: kevincoooool 社区组件 → 屏厂 osptek 官方驱动 (3 处实质修正, 编译通过待烧录)
 
 ### 背景

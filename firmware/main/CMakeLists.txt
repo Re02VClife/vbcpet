@@ -1,6 +1,7 @@
 set(sources
     "vbcpet_main.c"
     "transport_usb.c"
+    "transport_uart.c"
     "channel_demux.c"
     "display_pipeline.c"
     "protocol.c"
