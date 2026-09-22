@@ -63,3 +63,9 @@ JLC/
 
 # osptek vendor repo clone (reference only, do not commit)
 _osptek/
+
+# ── ESP32-C6 协处理器固件 (firmware_c6) ──
+firmware_c6/build/
+firmware_c6/managed_components/
+firmware_c6/sdkconfig
+firmware_c6/sdkconfig.old

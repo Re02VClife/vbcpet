@@ -60,7 +60,7 @@ cd live2d && npm install && cd ..
 python live2d/preview.py
 # → 浏览器打开 http://127.0.0.1:8765/render.html
 ```
-![alt text](c2ceaae121624d43fef4744a1a71c8a2.jpg)
+![人设图](docs/assets/character-concept.jpg)
 人设图（暂定）Q版形象适合小屏幕，后续若性能开销大可转换为像素风；
 人设图转live2d格式的工作还没有做，先拿开源的跑测试
 ### 3. 仿真回环（零成本，不依赖硬件）
