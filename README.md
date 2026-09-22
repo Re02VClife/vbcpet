@@ -55,8 +55,9 @@ cd live2d && npm install && cd ..
 ```
 
 ### 2.硬件
-[Uploading SCH_Schematic1_2026-09-22.pdf…]()
-
+原理图
+<img width="4698" height="3326" alt="SCH_Schematic1_1-P1_2026-09-22" src="https://github.com/user-attachments/assets/e1585ed5-bd67-4d78-9f2d-5ecb0e491b10" />
+PCB
 <img width="2160" height="2678" alt="PCB_PCB1_2026-09-22" src="https://github.com/user-attachments/assets/ccd40026-249e-4aa7-ba0c-75cd92af4628" />
 
 
