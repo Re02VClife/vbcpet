@@ -1,4 +1,23 @@
 # vbcpet 工作日志
+
+## 2026-09-17 (星期四) — 🧹 仓库整理: 清理 bring-up 临时文件
+
+**问题**: 根目录堆了 100+ 个 `_` 前缀的一次性调试脚本和串口日志（其中 60 个已误入库），
+pc-host 混着 7 张显示调试截图，推流脚本 4 个版本并存，模块手册 PDF 存了两份重复。
+
+**处理**:
+- 删除 90 个根目录 `_` 文件（一次性调试 py / 串口日志 txt / 被 `tools/ai_flash.py` 取代的旧烧录 ps1）。
+- 删除 pc-host 调试产物 (`debug_frame*.png` `crosshair_test.png` `decoded_from_jpeg.png` `_send_red.py`)
+  与 `test-assets/` 5 张无引用测试图；推流脚本只留当前在用的 `stream_final.py`。
+- 删除重复的 `P4C6核心板说明书.pdf`（与 `ESP32-P4C6-Core核心板_使用指南260413.pdf` MD5 相同）、
+  `_jlc20_extract/`（JLC/*.epro2 的解压副本）、空目录 `build/` `scratch/`。
+- 归档: `_MT3608.pdf` → `hardware/datasheets/`；V1 strap 烧录三件套 → `tools/flash-v1/`（带 README）；
+  人设图 → `docs/assets/`；`debug-report.md` 与两份根目录笔记 → `docs/notes/`。
+- `.gitignore` 补 `firmware_c6/` 的构建产物规则；`tools/ai_flash.py` 的 `STALE_PAT` 同步去掉已删脚本名。
+
+**回滚**: 删除前的完整快照在仓库外 `D:\vscode\vbcpet_cleanup_backup_20260917.zip` (4.0MB / 107 文件)；
+已入库的文件也可直接 `git restore`。
+
 ## 2026-09-09 (星期三) — 🎊 Live2D 推流上屏成功! 全链路打通 (下午-晚间)
 
 ### 📌 当前状态快照 (2026-09-09 晚, Phase 4 最终板)

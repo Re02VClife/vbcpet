@@ -101,6 +101,19 @@ python sim/sim.py --url http://127.0.0.1:8080/whip --headless --say "帮我跑�
 
 `ACTION_TO_MOTION` / `EMOTION_TO_EXPRESSION` 映射 Director 输出到 Live2D 标准名称。
 
+### 独立串口推流脚本（不含 Agent）
+
+上面的 WebRTC 路线是 M3 目标。当前 V1 板实际在跑的是**串口直推**——屏幕挂在 UART0/CH340 上：
+
+| 文件 | 说明 |
+|------|------|
+| `stream_final.py` | ★ 当前方案：`FRAME:<hexsize>\n` + JPEG → COM@2M，同时把固件日志按 `[FW]` 前缀回显 |
+| `serial_bridge.py` | 推流 + Claude 交互 + 表情/心情 + 按键模拟的单进程主控（v0.2） |
+
+```powershell
+.venv/Scripts/python pc-host/stream_final.py --port COM8 --baud 2000000 --quality 55
+```
+
 ## 协议
 
 - **Downlink**: `speech` / `emotion`(→realtime) / `status` / `panel` / `permission`

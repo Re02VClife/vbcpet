@@ -256,7 +256,7 @@ vbcpet/
 │   ├── serial_bridge.py         # ★ 主控: 推流 + Claude + 表情 + 心情
 │   ├── claude_sdk_driver.py     # Claude SDK 驱动
 │   ├── agent_driver.py          # 回调接口定义
-│   └── stream_test.py           # 纯推流压测
+│   └── stream_final.py          # V1 板推流 (UART0@2M, 复用控制台链路)
 ├── live2d/                      # Live2D 渲染
 │   ├── render.html              # ★ 角色渲染 + 心情系统 + 动作队列
 │   ├── tune_expressions.html    # ★ 表情调参工具

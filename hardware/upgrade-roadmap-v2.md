@@ -180,5 +180,5 @@ V2 的目标是**一根 USB-C 线即插即用**(像开发者板上电-烧录-串
 ## 附录 B：关联文档
 - 电源拓扑: power-tree.md / schematic/schematic-design.md / modular-design.md
 - 引脚: final-pinmap.md / board_config.h
-- 烧录经验: 本项目 _dlflash5.ps1 等根目录脚本 + firmware/README.md
+- 烧录经验: `tools/ai_flash.py` (一键烧录 + 启动日志断言) / `tools/flash-v1/` (V1 strap 兜底脚本) + firmware/README.md
 - 本轮事故教训: WORKLOG 2026-08-18 条目
