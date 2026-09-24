@@ -13,6 +13,9 @@
 #include "peripherals/nfc.h"
 #include "peripherals/usb_host.h"
 #include "peripherals/self_test.h"
+#include "peripherals/wifi_link.h"
+#include "peripherals/c6_flash.h"
+#include "esp_ldo_regulator.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "soc/lp_system_reg.h"
@@ -44,6 +47,53 @@ static void led_all_ok(void)      { led_state(0x00, 0xFF, 0x00); }   /* 绿: 全
 static void led_warn(void)        { led_state(0xFF, 0xD0, 0x00); }   /* 黄: 部分失败 */
 static void led_err(void)         { led_state(0xFF, 0x00, 0x00); }   /* 红: 关键失败 */
 static void led_boot(void)        { led_state(0x00, 0x80, 0xFF); }   /* 蓝: 启动中 */
+
+/* ── 内部 LDO 调压 (诊断用) ──
+ * P4 有 4 个可调 LDO (LDO_VO1~VO4), 各自给不同电路供电。本板实测:
+ *   LDO_VO3 = 2500mV  DSI PHY      (display_pipeline_dsi.c 已在用)
+ *   LDO_VO4 = ~1240mV SDMMC IO 组  (GPIO39~48 = SD1_CDATA0-7/CCLK/CCMD)
+ *                                    ⇒ 复位后没人配它, 停在默认低压,
+ *                                      导致 SD 卡 / PA_EN(GPIO46) / MPU_INT(GPIO47) / BL_PWM(GPIO48) 全部只有 ~1.2V
+ * 由 esp_ldo_acquire_channel() 设定; 通道设了 adjustable 之后可反复调压。
+ * 参考: IDF components/sdmmc/include/sd_pwr_ctrl_by_on_chip_ldo.h
+ *       "set to 4 is the LDO_VO4 is connected to power the SDMMC IO"
+ */
+static esp_ldo_channel_handle_t s_ldo_chan[5] = { NULL };   /* index 1..4 */
+
+static void ldo_cmd(int chan, int mv)
+{
+    if (chan < 1 || chan > 4) {
+        printf("用法: ldo <1-4> <mv>    例: ldo 4 3300\n"
+               "      ldo <1-4>         查看该通道是否已 acquire\n");
+        return;
+    }
+    if (mv <= 0) {
+        printf("LDO_VO%d: %s\n", chan,
+               s_ldo_chan[chan] ? "已 acquire (用 ldo <chan> <mv> 改压)" : "未 acquire");
+        return;
+    }
+    if (chan == 3) printf("注意: LDO_VO3 供 DSI PHY (当前 2500mV), 改动会影响显示\n");
+    if (chan == 4) printf("注意: LDO_VO4 供 SDMMC IO 组 (GPIO39~48), 3300 = 标准 SD 电平\n");
+
+    esp_err_t err;
+    if (s_ldo_chan[chan]) {
+        err = esp_ldo_channel_adjust_voltage(s_ldo_chan[chan], mv);
+        printf("LDO_VO%d adjust -> %d mV: %s\n", chan, mv,
+               err == ESP_OK ? "OK" : esp_err_to_name(err));
+    } else {
+        esp_ldo_channel_config_t cfg = {
+            .chan_id    = chan,
+            .voltage_mv = mv,
+            .flags.adjustable = true,
+        };
+        err = esp_ldo_acquire_channel(&cfg, &s_ldo_chan[chan]);
+        printf("LDO_VO%d acquire @ %d mV: %s\n", chan, mv,
+               err == ESP_OK ? "OK" : esp_err_to_name(err));
+        if (err != ESP_OK) s_ldo_chan[chan] = NULL;
+    }
+    printf("  现在量 pin66 看 ESP_LDO_VO4 实际输出; pin76 (GPIO48) 应跟着变成 mv 左右\n");
+}
+
 int bringup_init(transport_t *transport)
 {
     ESP_LOGI(TAG, "Peripheral bring-up starting…");
@@ -62,6 +112,12 @@ int bringup_init(transport_t *transport)
     if (servo_init() != 0)              ESP_LOGW(TAG, "servo init failed");
     touch_init();                       /* 触摸地址待确认, 失败不告警 */
     if (usb_host_periph_init() != 0)    ESP_LOGW(TAG, "USB host init failed");
+
+#if CONFIG_VBCPET_ENABLE_WIFI
+    /* WiFi = 模组内 ESP32-C6 (esp-hosted/SDIO), P4 无原生 WiFi */
+    wifi_link_boot();   /* 只打印提示, 不主动初始化 (避免 C6 没固件时 boot 期出问题) */
+    c6_flash_boot_hook();   /* 可选: 开机自动烧 C6 (绕开僵死的控制台) */
+#endif
 
     /* 状态灯自动汇总: 启动蓝 → 全 PASS 绿 / 有 FAIL 黄 (简易: 当前按 USB host 键翻) */
     ESP_LOGI(TAG, "Bring-up done. UART0 控制台: help / test <name> / test all / led <state> / brightness <0-100>");
@@ -89,8 +145,14 @@ static void console_task(void *arg)
             continue;                        /* 未到行尾, 继续收 */
         }
 
-        char cmd[32] = {0}, arg2[32] = {0};
+        char cmd[32] = {0}, arg2[32] = {0}, rest[96] = {0};
         sscanf(line, "%31s %31s", cmd, arg2);
+        {   /* rest = cmd 之后的整行剩余 (给 "wifi conn <ssid> <pass>" 这类多参数命令) */
+            const char *p = line;
+            while (*p && !isspace((unsigned char)*p)) p++;
+            while (*p && isspace((unsigned char)*p)) p++;
+            strncpy(rest, p, sizeof(rest) - 1);
+        }
 
         if (strcmp(cmd, "help") == 0) {
             printf("命令:\n"
@@ -101,9 +163,13 @@ static void console_task(void *arg)
                    "  scan                扫描 I2C 总线 (FOUND/NACK/TIMEOUT)\n"
                    "  led <state>         状态灯: ok绿/warn黄/err红/boot蓝/off  (低亮度)\n"
                    "  gp <pin>{h|l|r|z}   GPIO 诊断: h驱动高 l驱动低 r读回 z释放 (如 gp 48h)\n"
+                   "  ldo <1-4> <mv>      设置内部 LDO 通道电压 (如 ldo 4 3300 = SDMMC IO 拉到 3.3V)\n"
                    "  lcd                 强制点屏: 初始化 DSI/ST7102/背光 + 刷测试图案\n"
                    "  bl <0-100>          背光隔离测试 (不碰 DSI, 只开背光 PWM)\n"
                    "  brightness <0-100>  设置背光亮度\n"
+                   "  wifi <sub>          WiFi: scan/info/conn [ssid pass]/status (C6/esp-hosted)\n"
+                   "  c6flash [rom|baud]  把 main/c6_merged.bin 烧进模组里的 C6 (P4 当编程器)\n"
+                   "  c6mon [sec]         被动监听 C6 的 UART (看它有没有在跑)\n"
                    "  reboot              软件复位\n"
                    "  dl                  强制进下载模式(免 strap, 下个启动)\n");
         } else if (strcmp(cmd, "list") == 0) {
@@ -167,8 +233,25 @@ static void console_task(void *arg)
             } else {
                 printf("用法: gp <pin>{h|l|r|z}  例: gp 48h\n");
             }
+        } else if (strcmp(cmd, "ldo") == 0) {
+            /* ldo <chan> <mv>  —— arg2 = 通道号, rest 里第二个 token = 毫伏 */
+            int chan = atoi(arg2);
+            int mv = 0;
+            {
+                const char *p = rest;
+                while (*p && !isspace((unsigned char)*p)) p++;   /* 跳过通道号 */
+                while (*p && isspace((unsigned char)*p)) p++;
+                mv = atoi(p);
+            }
+            ldo_cmd(chan, mv);
         } else if (strcmp(cmd, "scan") == 0) {
             i2c_bus_scan();
+        } else if (strcmp(cmd, "wifi") == 0) {
+            wifi_link_cmd(arg2, rest);
+        } else if (strcmp(cmd, "c6flash") == 0) {
+            c6_flash_cmd(arg2, rest);
+        } else if (strcmp(cmd, "c6mon") == 0) {
+            c6_flash_monitor(*rest ? atoi(rest) : 10);
         } else if (strcmp(cmd, "reboot") == 0) {
             ESP_LOGI(TAG, "software reboot ...");
             vTaskDelay(pdMS_TO_TICKS(100));

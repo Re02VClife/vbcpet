@@ -28,6 +28,14 @@ def main():
         pass
     s = serial.Serial(a.port, a.baud, timeout=0.2)
     s.reset_input_buffer()
+    # 热身: 打开串口的瞬间, 线路上的毛刺会被板子当成一个坏字节, 吃掉紧随其后的
+    # 第一条命令的首字符 (2026-09-24 实测 "ldo 4 3300" 被读成 "?ldo" -> 未知命令,
+    # 导致整个 LDO 验证白跑一轮)。先发一个空行顶掉它; 板子控制台对空行直接 continue。
+    try:
+        s.write(b"\r\n")
+        s.flush()
+    except Exception:
+        pass
     t0 = time.time()
     sent = set()
     buf = bytearray()
