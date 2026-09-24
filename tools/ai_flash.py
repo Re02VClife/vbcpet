@@ -165,15 +165,21 @@ def build(bin_hint=None, quiet=False):
 
 
 def flash_args(build_dir, app_bin):
-    """优先用 idf.py 生成的 flash_args, 否则回退 P4 偏移表"""
-    fa = Path(build_dir) / "flash_args"
+    """优先用 idf.py 生成的 flash_args, 否则回退 P4 偏移表
+
+    注意: 命令在 cwd=build_dir 下执行 (flash_args 里是 bootloader/xxx 这类相对路径),
+    所以这里给 esptool 的 @文件 必须是绝对路径, 否则会二次拼接成
+    build_dir/build_dir/flash_args (2026-09-24 踩过)。
+    """
+    bd = Path(build_dir).resolve()
+    fa = bd / "flash_args"
     if fa.exists():
         return ["@" + str(fa)], fa.read_text(errors="replace").strip()
     args, desc = [], []
     for off, rel in P4_DEFAULT_ARGS:
-        p = Path(build_dir) / rel
+        p = bd / rel
         if rel == "vbcpet.bin" and app_bin:
-            p = Path(app_bin)
+            p = Path(app_bin).resolve()
         if p.exists():
             args += [hex(off), str(p)]
             desc.append(f"{hex(off)} {p}")

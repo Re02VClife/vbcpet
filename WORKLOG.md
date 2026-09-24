@@ -1,5 +1,51 @@
 # vbcpet 工作日志
 
+## 2026-09-24 (星期三) — 🔬 V1 板 IO 供电大案: GPIO39~48 被压在 1.23V, pin66 是电源节点
+
+### 结论先行
+**模组 P4 的 GPIO39~48 这一组 pad, IO 供电不是 3.3V, 而是 ~1.23V。**
+把 **pin66** (手册标 `ESP_LDO_VO4`) 外部直连 +3V3, 整组即恢复 3.3V。
+⇒ **V2 板上 pin66 直接接 3.3V** (不串大电阻), 其余引脚全部沿用原分配, 不必搬脚。
+
+### 证据链 (缺一不可)
+1. **逐脚电平扫描** (推挽输出、无负载, 见 `tools/gp_sweep.py`):
+   | 模组脚 | 信号 | 实测 |
+   |---|---|---|
+   | pin45 | GPIO45 / SD_CD | 1.23V |
+   | pin46 | GPIO46 / **PA_EN** | 1.23V |
+   | pin47 | GPIO47 / MPU_INT | 1.23V |
+   | pin48 | GPIO48 / BL_PWM | 1.33V |
+   同板对照: GPIO30/31/32/34/49/50 = 3.24V, GPIO37(UART0_TXD) = 3.3V ⇒ **只有这一组低**
+2. **软件调压无效**: `ldo 4 800 / 2000 / 3300` 全部返回 OK, pin66 恒 1.24V。
+   IDF `esp_ldo_regulator.c` 路径逐行核对无 bug (unit 映射 / dref-mul / owner=SW 都对)
+   ⇒ 该轨**不由 LDO_VO4 驱动**; IDF 注释 "LDO_VO4 is connected to power the SDMMC IO" 只是 P4 的一种可行接法。
+3. **pin66 就是这组 IO 的电源节点** (电压随源阻抗变化):
+   | 外部从 3V3 串入 | pin66 / GPIO48 实测 |
+   |---|---|
+   | 4.7 kΩ | 2.35 V |
+   | 4×4.7k 并联 = 1.175 kΩ | 2.80 V |
+   | **0 Ω 直连** | **3.3 V** |
+4. **功能验证** (直连 3.3V 后):
+   - ✅ **SD 卡挂载成功**: `sd: SD mounted (15801 MB, asdfg)` —— 1-bit 模式
+   - ✅ **audio 自检 PASS** (`PA ON`): PA_EN = GPIO46, 改前 1.23V 根本拉不起来
+   - ⚠️ **4-bit 模式仍失败**在 `sdmmc_init_sd_ssr` ⇒ 疑 DAT1~3 (GPIO40/41/42) 连接问题
+     (SCR 是第一个用 D0 线的命令, 1-bit 下通过; 切 4-bit 后第一个读命令就死)
+
+### 新增/修复的工具
+- `tools/gp_sweep.py` — 自动下发 gp 命令 + 记录万用表读数 (`--stage gp|ldo`)
+- `firmware/main/bringup.c` — 新增控制台命令 `ldo <1-4> <mv>`
+- `tools/serial_console.py` — 修"吃首字符" (连接后先发换行热身; 曾害得整轮 LDO 验证白跑)
+- `tools/ai_flash.py` — 修 flash_args 路径二次拼接 (cwd=build_dir 时须用绝对路径)
+
+### 仍待解决 (与本发现无关的独立问题)
+1. **I2C 总线**: `scan` 在 400kHz 下**所有地址都 FOUND 且 reg0=0x00** (总线恒低的特征);
+   本日志记过"降到 100kHz"曾解决同类现象 ⇒ **touch / nfc / imu 三个自检失败同源**
+2. **DAT1~3**: 4-bit SD 失败, 需量模组 pin68/69/70 ↔ TF1 pin8/1/2 通断
+3. **MPU-6500**: `WHO_AM_I=0x00` (U7 焊接疑点)
+4. SD 驱动**当前临时强制 1-bit** (`sd_card.c` 去掉 `SDMMC_HOST_FLAG_4BIT`)
+5. 测试用的那张卡是**别的设备的 Linux 系统盘** (ZIMAGE / ROOTFS.GZ / BOOT.SCR / MYD-Y6..DTB),
+   只读挂载导致 `open write FAIL` —— 验证写操作要换空卡
+
 ## 2026-09-17 (星期四) — 🧹 仓库整理: 清理 bring-up 临时文件
 
 **问题**: 根目录堆了 100+ 个 `_` 前缀的一次性调试脚本和串口日志（其中 60 个已误入库），
