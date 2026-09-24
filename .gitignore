@@ -44,6 +44,12 @@ phone/**/Pods/
 # ── Live2D external repos ──
 live2d/CubismWebSamples/
 
+# ── 第三方角色模型 (体积大 + 版权归原作者, 不入库) ──
+# 本地放进 live2d/models/ 即可使用; 获取方式与放置说明见 live2d/models/README.md
+live2d/models/*.vrm
+live2d/models/*.glb
+live2d/models/*.gltf
+
 # ── Live2D 换皮工具产物 (由 Hiyori 贴图派生, 不入库) ──
 live2d/Hiyori.blocks/
 live2d/Hiyori.new/

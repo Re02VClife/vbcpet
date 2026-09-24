@@ -1,19 +1,50 @@
 # models/ — 用户导入模型目录
 
-把你想在桌宠里显示的模型拖进这个目录，即可在三套渲染管线里加载。
+把你想在桌宠里显示的模型放进这个目录，即可在三套渲染管线里加载。
 
-## 已导入模型（来自 MateEngine 源码 `Assets\MATE ENGINE - Avatar`）
+> ## ⚠️ 本目录不再内置任何模型（2026-09-25 移出仓库）
+>
+> 原先入库的三个 VRM 角色（合计约 96 MB）**已从 git 中移出**，原因有两条：
+>
+> 1. **体积**：`Lazuli_VRM.vrm` 单个 57.8 MB，超过 GitHub 推荐的 50 MB 上限；
+> 2. **版权**：这些角色版权归原作者 **Yorshka Shop**，MateEngine 的说明里明确
+>    「**勿在自建产物里再分发**」，不适合随本仓库分发。
+>
+> 文件已加入 `.gitignore`（`live2d/models/*.vrm|*.glb|*.gltf`），
+> **本地已有的文件不会被删除**，桌宠照常可用；只是不再提交到仓库。
 
-| 文件 | 大小 | 格式 | 说明 |
-|---|---|---|---|
-| `Zome.vrm` | 26 MB | VRM 0.x | **默认模型**（`render_vrm.html` 无 `--model` 时加载），24 组表情，表情最丰富 |
-| `aldina.vrm` | 12 MB | VRM 0.x | 17 组表情 |
-| `Lazuli_VRM.vrm` | 58 MB | VRM 0.x | 最大，MToon 材质 |
+## 一、按需自行放置模型
+
+三个内置过、且已在 `render_vrm.html` / `desktop_pet_display.py` / `stream_simple.py`
+里作为默认值出现的角色，都来自开源项目
+[Mate-Engine](https://github.com/shinyflvre/Mate-Engine) 的发布包
+（`Assets/MATE ENGINE - Avatar/`），从它的公开 Release 里自行取回后放到本目录即可：
+
+| 文件名 | 大小 | 格式 | 来源路径（MateEngine 发布包内） | 说明 |
+|---|---|---|---|---|
+| `Zome.vrm` | 26 MB | VRM 0.x | `MATE ENGINE - Avatar/Zome.vrm` | **默认模型**（`--model` 缺省时加载），24 组表情，表情最丰富 |
+| `aldina.vrm` | 12 MB | VRM 0.x | `MATE ENGINE - Avatar/DLCs/aldina.vrm` | 17 组表情 |
+| `Lazuli_VRM.vrm` | 58 MB | VRM 0.x | `MATE ENGINE - Avatar/DLCs/Lazuli_VRM.vrm` | 最大，MToon 材质 |
+
+放置后目录应长这样：
+
+```
+live2d/models/
+├─ README.md            ← 本文件（会入库）
+├─ Zome.vrm             ← 自己放入，不入库
+├─ aldina.vrm           （可选）
+└─ Lazuli_VRM.vrm       （可选）
+```
 
 三个模型均为 **VRM 0.x**（`specVersion=0.0`，作者 Yorshka）。`render_vrm.html` 已内置 VRM 0.x 支持：
 自动解析 `extensions.VRM.blendShapeMaster` 组合表情，情绪映射 `joy/angry/sorrow/fun`，并做 180° 朝向修正。
 
-### Zome 表情清单（24 组，从 `.vrm` 提取）
+> **没放模型会怎样？** VRM 模式用缺省路径时会加载失败，页面控制台打印
+> `VRM load failed: ... (放 .vrm/.glb 到 models/, 或检查路径)`，
+> 但不会卡住推流（`window._ready` 仍会置位）。Live2D / PNG 两条管线不受影响，
+> 想立刻看效果可以用 `--mode live2d` 或 `--mode png`。
+
+### Zome 表情清单（24 组，从 `.vrm` 提取，供参考）
 
 | preset | 表情组 |
 |---|---|
@@ -40,6 +71,9 @@ npm run start:vrm -- -- --model models/Zome.vrm
 | `.glb` / `.gltf` | VRM (`render_vrm.html`) | GLTF/GLB 二进制，含 blendshape（表情）最佳；VRM 0.x 也可放（会被 GLTFLoader 当作 glb 尝试，见下方说明） |
 | `.vrm` | VRM (`render_vrm.html`) | VRM 1.0 需 @pixiv/three-vrm 加载器（见下文）；纯 VRM 0.x 若为 glb 容器可直接改后缀为 `.glb` |
 
+> `.vrm` / `.glb` / `.gltf` 已在 `.gitignore` 中；想入库自己的模型请自行调整规则，
+> 并确认该模型许可允许再分发。
+
 ### PNG 帧序列
 大肥鱼 PNG 帧序列在 `assets/dafeiyu/`，不走 `models/` 目录；若要自定义 PNG 角色，把 sprite 图集按
 `inventory.json` 的 `states/<state>/frames/<size>` 结构放入即可（详见 `render_png.html` 注释）。
@@ -63,6 +97,13 @@ Electron 单侧：
 cd live2d/electron
 npm run start:vrm -- -- --model models/myAvatar.glb
 ```
+
+### 提取模型元数据 / 表情清单
+```
+node tools/extract_vrm_meta.mjs live2d/models/Zome.vrm
+```
+用来核对任意模型的 `meta`（作者/许可/版本）与 `blendShapeMaster` 表情组，
+换新角色时先跑一遍，再决定要不要改 `render_vrm.html` 的 `EMOTION_MORPHS` 映射。
 
 ## VRM 1.0 完整支持（已内置，自动降级）
 
