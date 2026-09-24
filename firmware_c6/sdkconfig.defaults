@@ -1,0 +1,51 @@
+# ── vbcpet C6 slave (esp-hosted CP) ────────────────────────────────
+# 角色: COPROCESSOR, 供 MCU host (ESP32-P4) 使用, MCU RPC v2 wire
+CONFIG_ESP_HOSTED=y
+CONFIG_ESP_HOSTED_CP=y
+CONFIG_ESP_HOSTED_CP_FOR_MCU=y
+CONFIG_ESP_HOSTED_CP_RPC_V2=y
+CONFIG_ESP_HOSTED_CP_FEAT_WIFI=y
+
+CONFIG_IDF_TARGET="esp32c6"
+
+# Wi-Fi 企业级支持关掉 (省 flash)
+CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT=n
+
+# 蓝牙: 先关 (模组里 C6 的天线/共存是另一件事, 需要时再开)
+CONFIG_BT_ENABLED=n
+
+# SDIO datapath: 用 rel-3 默认的 SW_AGGR (软件聚合, 吞吐最好)。
+# ⚠️ 它要求本地 ESP-IDF 打一处补丁 (sdio_slave.c 的 4092B 单次发送上限):
+#    components/esp_driver_sdio/src/sdio_slave.c
+#    - SDIO_SLAVE_CHECK(len > 0 && len <= 4092, ...)
+#    + SDIO_SLAVE_CHECK(len > 0, ...)
+#    已在本机 D:\Espressif\frameworks\esp-idf-v5.5.3 打过 (原文件备份为 sdio_slave.c.bak-vbcpet-4092)。
+# 另: PACKET 模式在本版组件里是没实现的桩 (#error "Not the current run"), 不要选。
+CONFIG_EH_TRANSPORT_CP_SDIO_MODE_SW_AGGR=y
+
+# C6FH4 = 4MB flash
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_eh_cp_ota_4m.csv"
+
+# CPU / OS
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160=y
+CONFIG_FREERTOS_HZ=1000
+CONFIG_ESP_WIFI_NVS_ENABLED=y
+
+# Wi-Fi 吞吐 (官方 esp32c6 默认那套)
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=20
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=64
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=64
+CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=y
+CONFIG_ESP_WIFI_TX_BA_WIN=32
+CONFIG_ESP_WIFI_AMPDU_RX_ENABLED=y
+CONFIG_ESP_WIFI_RX_BA_WIN=32
+CONFIG_ESP_WIFI_RX_IRAM_OPT=y
+CONFIG_ESP_WIFI_IRAM_OPT=y
+CONFIG_ESP_CACHE_MALLOC=y
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# 串口日志 (C6 的 UART0 = 模组 pin4/5, 我们飞线时能看到它的启动日志)
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200

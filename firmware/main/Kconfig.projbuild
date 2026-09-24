@@ -61,6 +61,94 @@ menu "vbcpet Display"
 
 endmenu
 
+menu "vbcpet WiFi (模组内 ESP32-C6 + esp-hosted)"
+
+    config VBCPET_ENABLE_WIFI
+        bool "Enable WiFi via on-module ESP32-C6 (esp-hosted/SDIO)"
+        default n
+        help
+            ESP32-P4 无原生 WiFi。模组 ESP32-P4C6-Core 内含 ESP32-C6FH4,
+            与 P4 经**模组内部 SDIO**(未引出的 GPIO14-19) 互联, C6 侧需运行
+            esp-hosted slave 固件, P4 侧用 esp_hosted + esp_wifi_remote。
+            勾选后: 启动时初始化 hosted 传输 + esp_wifi (STA), 控制台多一个
+            "wifi" 命令 (scan/info/conn/status)。需 WiFi 天线 (模组 pin2/ANT)。
+
+    config VBCPET_WIFI_PROBE_ON_BOOT
+        bool "Run WiFi probe at boot (CP info + AP scan)"
+        depends on VBCPET_ENABLE_WIFI
+        default y
+        help
+            开机 4 秒后自动跑一次探测: 打印 C6 芯片信息 + slave 固件版本 +
+            扫描到的 AP 列表 (SSID/RSSI/信道)。W0 阶段用来一次性确认
+            "C6 有没有烧 slave 固件" 和 "天线行不行"。
+
+    config VBCPET_WIFI_SSID
+        string "Default WiFi SSID (for 'wifi conn' / boot auto-connect)"
+        depends on VBCPET_ENABLE_WIFI
+        default ""
+
+    config VBCPET_WIFI_PASSWORD
+        string "Default WiFi password"
+        depends on VBCPET_ENABLE_WIFI
+        default ""
+
+endmenu
+
+menu "vbcpet C6 烧录通道 (P4 当 C6 的编程器)"
+
+    config VBCPET_C6_FLASH
+        bool "Enable P4-as-C6-programmer (UART + esp-serial-flasher)"
+        default n
+        help
+            模组里的 ESP32-C6 只引出 UART(pin4/5) 与 BOOT strap(pin9)。把这两组线接到
+            P4 的空闲 GPIO 后, P4 就能自己把 C6 的固件写进去 (官方 esp-serial-flasher)。
+            控制台命令: c6flash / c6mon。镜像以 EMBED 方式烧进 P4 固件 (main/c6_merged.bin)。
+
+    config VBCPET_C6_WAKE_SCAN
+        bool "开机先做 C6 唤醒扫描 (试 GPIO54/53/52/0 × 高/低/高阻 找 C6 的 EN)"
+        depends on VBCPET_C6_FLASH_ON_BOOT
+        default n
+        help
+            模组未引出 C6 的 EN; 若模组内部把 C6 EN 接到了某个 P4 GPIO, 而板子上该脚悬空,
+            C6 就会一直处于未使能状态 (表现为 SDIO 不枚举 / UART 无响应)。
+            勾上后每次开机自动扫描候选脚, 并打印每种组合下 C6 是否有字节输出。
+
+    config VBCPET_C6_FLASH_ON_BOOT
+        bool "开机 5 秒后自动执行 c6flash (完全不依赖控制台)"
+        depends on VBCPET_C6_FLASH
+        default n
+        help
+            控制台一旦僵死 (项目已知 bug B1: UART0 控制台复位后 1-3 分钟冻结),
+            就没办法手敲 c6flash。勾上这个: 每次启动 5 秒后在后台自动尝试给 C6
+            烧固件 (C6 在 ROM 下载模式才会响应; 等 45s 没反应就安静放弃, 不影响其他功能)。
+
+    config VBCPET_C6_UART_TX_GPIO
+        int "P4 GPIO → 模组 pin4 (C6_U0RXD)"
+        depends on VBCPET_C6_FLASH
+        default 30
+
+    config VBCPET_C6_UART_RX_GPIO
+        int "P4 GPIO ← 模组 pin5 (C6_U0TXD)"
+        depends on VBCPET_C6_FLASH
+        default 31
+
+    config VBCPET_C6_BOOT_GPIO
+        int "P4 GPIO → 模组 pin9 (C6_IO9), -1 = 那根线直接接 GND"
+        depends on VBCPET_C6_FLASH
+        default -1
+
+    config VBCPET_C6_SPARE_GPIO_A
+        int "空闲 GPIO 借给 flasher 当 reset 脚 (板上未接, 无副作用)"
+        depends on VBCPET_C6_FLASH
+        default 53
+
+    config VBCPET_C6_SPARE_GPIO_B
+        int "空闲 GPIO 借给 flasher 当 boot 脚 (板上未接, 无副作用)"
+        depends on VBCPET_C6_FLASH
+        default 52
+
+endmenu
+
 menu "vbcpet Bring-up Debug"
 
     config VBCPET_MINIMAL_USJ
