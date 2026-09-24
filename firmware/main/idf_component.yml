@@ -4,6 +4,13 @@ dependencies:
   ## ST7102 驱动已换为屏厂 osptek 官方组件, 本地 vendored: components/esp_lcd_st7102/
   ## (来源 gitee.com/osptek/4.3-tft-480x800-mipi-st7102, 与 kevincoooool 社区组件同源)
   # kevincoooool/esp_lcd_st7102: "^1.0.0"
+  ## WiFi: P4 无原生 WiFi, 由模组内 ESP32-C6 经内部 SDIO(GPIO14-19) 提供。
+  ## host 侧只装 esp_hosted + esp_wifi_remote, 之后用标准 esp_wifi API。
+  ## ⚠️ C6 必须预烧/烧入 **版本匹配的 esp-hosted slave 固件**, 否则 host 侧初始化失败。
+  espressif/esp_hosted: "^3.0.7"
+  espressif/esp_wifi_remote: "^1.6.4"
+  ## P4 当 C6 的串口编程器 (V1 飞线版 + V2 板级方案): 官方"从一颗 MCU 烧另一颗 ESP"的库
+  espressif/esp-serial-flasher: "^2.0.0"
   ## 后续按需添加:
   # espressif/esp_webrtc: ">=1.2.0"     # WebRTC transport (M2)
   # espressif/esp_xiaozhi: ">=0.1.0"    # xiaozhi 全栈（fork 时可开）
