@@ -1,0 +1,8 @@
+# vbcpet 分区表 — 单 app, 4MB (Flash 16MB)
+# 为什么不用默认的 partitions_singleapp.csv: 默认只有 1MB, 而一旦引入 esp_hosted
+# (WiFi/WebRTC) app 会涨到 ~1.1-1.3MB, 直接 overflow。统一用这张表, 主推流版和
+# WiFi 探测版共用, 避免"能编译 / 不能编译"随配置漂移。
+# name,     type, subtype,  offset,   size
+nvs,        data, nvs,      0x9000,   0x6000
+phy_init,   data, phy,      0xf000,   0x1000
+factory,    app,  factory,  0x10000,  0x400000

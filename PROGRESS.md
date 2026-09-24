@@ -1,6 +1,6 @@
 # vbcpet 项目进度报告
 
-> 更新: 2026-08-11 | 当前阶段: Phase 2/3 硬件 — **已送打样**; 板到货前固件并行开发 (DSI 后端 + 外设驱动 + 自检框架已完成, 待板 bring-up)
+> 更新: 2026-09-09 | 当前阶段: Phase 4 最终板 Bring-up — 🎉 **屏幕点亮成功**: DSI 后端换用屏厂 osptek 官方驱动 (gitee.com/osptek/4.3-tft-480x800-mipi-st7102), 修复 ① DSI PHY 未供电 (LDO VO3 2.5V) ② PLLREF 时钟选错 ③ 面板未复位先读 ID ④ init 序列非本屏参数 四项根因, 渐变图案 + 背光全通过 (详见 WORKLOG 2026-09-09)。V2 打样主线见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)
 
 ---
 
@@ -256,7 +256,7 @@ vbcpet/
 │   ├── serial_bridge.py         # ★ 主控: 推流 + Claude + 表情 + 心情
 │   ├── claude_sdk_driver.py     # Claude SDK 驱动
 │   ├── agent_driver.py          # 回调接口定义
-│   └── stream_test.py           # 纯推流压测
+│   └── stream_final.py          # V1 板推流 (UART0@2M, 复用控制台链路)
 ├── live2d/                      # Live2D 渲染
 │   ├── render.html              # ★ 角色渲染 + 心情系统 + 动作队列
 │   ├── tune_expressions.html    # ★ 表情调参工具
@@ -287,18 +287,35 @@ vbcpet/
 
 ## 八、下一步
 
+> ⚠️ **2026-08-18 转折**: V1 板主控 P4C6-Core 因 5V 打地短路烧毁(3.3V 轨短路)。**决定: 直接推进 V2 板重新打样 (P0+P1)**, 固件在现有 P4 开发板并行验证。=> **执行清单见 [hardware/v2-execution-plan.md](hardware/v2-execution-plan.md)**, 设计教训见 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)**
+
+### V1 板现状 (2026-08-24 更新)
+
+> ✅ **换芯后烧录通道已恢复**: 根因 **R12 (4.7kΩ strap 上拉) 开路** → 更换后 esptool 三镜像 Hash verified (bootloader 23552B + partition 3072B + app 941056B); 拔 strap 飞线 + RST1 → `boot:0xf SPI_FAST_FLASH_BOOT` → 新固件 (v730fd68-dirty) 正常启动, PSRAM 32MB, 按键/LED/Audio/USJ/控制台全 ready。**V1 板可继续服役直到 V2 到货**。
+> 待办: `test all` 自检记录; MPU-6500 (U7) WHO_AM_I=0x00 焊接重查; SD 卡验证; Touch 地址定位。
+
+### 主线: V2 板打样 (P0+P1)
+
 | 优先级 | 任务 | 说明 |
 |--------|------|------|
-| **P0** | **等板 + bring-up** | 板到后烧录→分区上电→UART0 控制台 `test all` 逐项自检 (先 3V3/Buck, 再模组/屏/背光, 后外设) |
-| **P0** | **打样疑点验证** | ⚠️ USB-A 口电池模式 (D1 pin5) + USB_DP/DM 差分信号完整性 + ST7102 lane 对线 — 见 README |
-| **P0** | 满分辨率推流实测 | 480×800 JPEG 在最终板实测 fps (目标 ≥8); USB-Serial-JTAG 吞吐; quality/baud 调优 |
-| P1 | 机械臂 USB 协议 | SO101 控制板 USB 协议确认 + P4 usb_host CDC-ACM 数据通路 (当前只到枚举检测) |
-| P1 | 触摸协议确认 | ST7123 实际 I2C 地址 + 寄存器协议 (自检已可探测; 读点函数按实板修正) |
-| P1 | Live2D 480×800 调参 | 模型 scale/位置按新画布微调; 文字 16px 在 4.3" 屏偏小, 考虑 2× 放大 |
-| P1 | P4 硬件端到端验证 | serial_bridge.py (`--res 480x800`) + 心情表情联动 (在最终板) |
-| P2 | WebRTC 接收链路 | 板到后按 [docs/webrtc-bringup.md](docs/webrtc-bringup.md) 启用 esp-hosted + esp_webrtc |
-| P2 | ST7789V 颜色校正 | 软件色表映射 (开发板遗留) |
-| P2 | 下一版修正 | L1 (IP5306) 201610→CD32 提升电流余量; LED_A/+2V8 线宽 10→12mil; D1 pin5→+5V; USB_DP/DM→9.5mil |
+| **P0** | **电源保护** | F1 0Ω→**PPTC 1~1.5A**; +3.3V TVS; 5V/3.3V 大电容 — 防再烧主控 |
+| **P0** | **USJ 即插即用** | GPIO24/25(USJ) 引到板载 USB-C; 一条线供电+烧录+串口+JTAG (V1 只验证能枚举, 未引出) |
+| **P0** | **舵机改脚** | GPIO24/25 排他给 USJ; YAW/PITCH→GPIO28/29 (`board_config.h` 同步) |
+| **P1** | I2C 4.7k 上拉 | SDA/SCL 4.7kΩ→3V3; 上拉后试回 400kHz |
+| **P1** | 屏幕/FPC/DSI | flip-lock 座 + DSI 差分测试点 + MT3608 pin1 丝印; 一并修 V1 疑点(L1/CD32, D1 pin5→+5V, USB 9.5mil) |
+| P1 | 满分辨率推流实测 | 480×800 JPEG fps (目标 ≥8) — V2 板到手后 |
+| P1 | 控制台僵化待修 | **B1 在开发板并行**: UART0 长会话停响应, 加空闲看门狗 |
+| P1 | DSI ST7102 lane 预研 | **B3**: 备 lane swap/极性寄存器方案, V2 到手即试 |
+
+### 并行固件任务 (开发板 WT9932P4-TINY)
+
+| 任务 | 说明 |
+|------|------|
+| B1 | 控制台"僵化"修复 (空闲看门狗/队列保活) |
+| B2 | 背光链路驱动固化 (`bl`/`brightness`, MT3608 EN 时序) |
+| B3 | DSI ST7102 lane 顺序预研 (esp_lcd_st7102 init_cmds) |
+| B4 | 开机自检 + 状态灯巩固 (LED 闪烁编码错误码) |
+| B5 | 烧录流程文档化 (USJ 为主, `dl` 兜底) |
 
 ### 预计时间线
 

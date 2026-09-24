@@ -15,6 +15,7 @@
 #include "text_render.h"
 #include "esp_timer.h"
 #include "driver/usb_serial_jtag.h"
+#include "peripherals/sk6812.h"
 #ifdef CONFIG_DISPLAY_BACKEND_DSI
 #include "bringup.h"
 #endif
@@ -23,8 +24,17 @@ static const char *TAG = "vbcpet";
 
 static bool g_frame_decoded = false;
 
+static bool s_led_init = false;
+
 static void on_frame(const uint8_t *jpeg, size_t len, void *ctx)
-{ (void)ctx; if (display_pipeline_feed_jpeg(jpeg, len) == 0) g_frame_decoded = true; }
+{
+    (void)ctx;
+    /* LED 诊断: 帧到达 app 层 = 绿闪 (demux/UART RX 正常的证据) */
+    if (!s_led_init) { sk6812_init(); s_led_init = true; }
+    sk6812_set_all(0, 100, 0);
+    sk6812_show();
+    if (display_pipeline_feed_jpeg(jpeg, len) == 0) g_frame_decoded = true;
+}
 
 static void on_ctrl(const char *json, void *ctx)
 { (void)ctx; engine_on_ctrl_message(json); }
@@ -32,15 +42,52 @@ static void on_ctrl(const char *json, void *ctx)
 static void on_raw(const char *line, void *ctx)
 { (void)ctx; engine_on_raw_line(line); }
 
+#ifdef CONFIG_VBCPET_MINIMAL_USJ
+/** 最小 USB-Serial/JTAG 隔离测试: 只装 USJ 驱动 + SK6812 心跳, 永不返回 */
+static void minimal_usj_test(void)
+{
+    ESP_LOGI(TAG, "[MINIMAL-USJ] boot (no host/display/bringup)");
+    bool sk_ok = (sk6812_init() == 0);
+    transport_t *t = transport_usb_create(16384, 16384);
+    bool usj_ok = (t != NULL);
+    ESP_LOGI(TAG, "[MINIMAL-USJ] sk6812=%s usj-driver=%s",
+             sk_ok ? "ok" : "fail", usj_ok ? "OK" : "FAIL");
+
+    if (sk_ok) {
+        sk6812_clear();
+        sk6812_set_all(usj_ok ? 0 : 255, usj_ok ? 255 : 0, 0); /* 绿=OK 红=FAIL */
+        sk6812_show();
+    }
+    bool on = false;
+    while (1) {
+        if (sk_ok) {
+            sk6812_set_all(on ? 0 : (usj_ok ? 0 : 255),
+                           on ? 0 : (usj_ok ? 255 : 0), 0);
+            sk6812_show();
+        }
+        on = !on;
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+#endif /* CONFIG_VBCPET_MINIMAL_USJ */
+
 void app_main(void)
 {
+#ifdef CONFIG_VBCPET_MINIMAL_USJ
+    minimal_usj_test();   /* 不返回: 隔离测试模式 */
+#endif
     ESP_LOGI(TAG, "vbcpet booting on %s (IDF %s)", CONFIG_IDF_TARGET, esp_get_idf_version());
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase(); nvs_flash_init();
     }
     /* RX 32KB: 480×800 JPEG 每帧 40-80KB, 大缓冲防 USB 丢帧 */
+#ifdef CONFIG_VBCPET_TRANSPORT_UART
+    /* V1 推流: UART0/CH340 @2M 复用链路 (console=NONE, RX 64KB 抗帧抖动) */
+    transport_t *transport = transport_uart_create(65536, 16384);
+#else
     transport_t *transport = transport_usb_create(32768, 16384);  /* TX=16KB 防心跳填满 */
+#endif
     if (!transport) { ESP_LOGE(TAG, "Transport fail"); return; }
     if (display_pipeline_init() != 0) { ESP_LOGE(TAG, "Display fail"); return; }
     display_pipeline_draw_boot_screen(default_jpeg_data, DEFAULT_JPEG_SIZE);
@@ -57,7 +104,9 @@ void app_main(void)
 #ifdef CONFIG_DISPLAY_BACKEND_DSI
     /* 最终板: 外设 bring-up + 控制台命令 */
     bringup_init(transport);
-    bringup_start_console();
+#ifndef CONFIG_VBCPET_TRANSPORT_UART
+    bringup_start_console();   /* UART 复用推流时让位: console 任务读 UART0 会抢帧字节 */
+#endif
 #endif
 
     ESP_LOGI(TAG, "Main loop");

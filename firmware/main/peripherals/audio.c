@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const char *TAG = "audio";
@@ -80,20 +81,30 @@ int audio_self_test(void)
     ESP_LOGI(TAG, "Self-test: 440Hz 蜂鸣 ×3…");
     audio_pa_enable(true);
     const int SR = AUDIO_SAMPLE_RATE;
-    int16_t tone[SR / 4];   /* 250ms */
+    /* 大数组走堆: tone=24KB stereo=48KB, 栈上放不下 (console 任务栈 8KB) */
+    int16_t *tone   = malloc(SR / 4 * sizeof(int16_t));
+    int16_t *stereo = malloc(SR / 4 * 2 * sizeof(int16_t));
+    if (!tone || !stereo) {
+        free(tone);
+        free(stereo);
+        ESP_LOGE(TAG, "Self-test: malloc fail");
+        audio_pa_enable(false);
+        return -1;
+    }
     for (int i = 0; i < SR / 4; i++) {
         int16_t v = (int16_t)(sinf(2.0f * 3.14159f * 440.0f * i / SR) * 8000.0f);
         tone[i] = v;
     }
     for (int n = 0; n < 3; n++) {
-        int16_t stereo[SR / 4 * 2];
         for (int i = 0; i < SR / 4; i++) {
             stereo[i*2]   = tone[i];   /* L */
             stereo[i*2+1] = tone[i];   /* R (MAX98357A SD_MODE=HIGH 播 R) */
         }
-        i2s_channel_write(s_tx, stereo, sizeof(stereo), NULL, 100);
+        i2s_channel_write(s_tx, stereo, SR / 4 * 2 * sizeof(int16_t), NULL, 100);
         vTaskDelay(pdMS_TO_TICKS(300));
     }
+    free(tone);
+    free(stereo);
 
     /* 2. 麦克风回放 2s: 读 RX → 写 TX */
     ESP_LOGI(TAG, "Self-test: 麦克风回放 2s (对着麦说话, 喇叭应能听到)…");

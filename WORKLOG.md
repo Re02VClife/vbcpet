@@ -1,5 +1,265 @@
 # vbcpet 工作日志
 
+## 2026-09-24 (星期三) — 🔬 V1 板 IO 供电大案: GPIO39~48 被压在 1.23V, pin66 是电源节点
+
+### 结论先行
+**模组 P4 的 GPIO39~48 这一组 pad, IO 供电不是 3.3V, 而是 ~1.23V。**
+把 **pin66** (手册标 `ESP_LDO_VO4`) 外部直连 +3V3, 整组即恢复 3.3V。
+⇒ **V2 板上 pin66 直接接 3.3V** (不串大电阻), 其余引脚全部沿用原分配, 不必搬脚。
+
+### 证据链 (缺一不可)
+1. **逐脚电平扫描** (推挽输出、无负载, 见 `tools/gp_sweep.py`):
+   | 模组脚 | 信号 | 实测 |
+   |---|---|---|
+   | pin45 | GPIO45 / SD_CD | 1.23V |
+   | pin46 | GPIO46 / **PA_EN** | 1.23V |
+   | pin47 | GPIO47 / MPU_INT | 1.23V |
+   | pin48 | GPIO48 / BL_PWM | 1.33V |
+   同板对照: GPIO30/31/32/34/49/50 = 3.24V, GPIO37(UART0_TXD) = 3.3V ⇒ **只有这一组低**
+2. **软件调压无效**: `ldo 4 800 / 2000 / 3300` 全部返回 OK, pin66 恒 1.24V。
+   IDF `esp_ldo_regulator.c` 路径逐行核对无 bug (unit 映射 / dref-mul / owner=SW 都对)
+   ⇒ 该轨**不由 LDO_VO4 驱动**; IDF 注释 "LDO_VO4 is connected to power the SDMMC IO" 只是 P4 的一种可行接法。
+3. **pin66 就是这组 IO 的电源节点** (电压随源阻抗变化):
+   | 外部从 3V3 串入 | pin66 / GPIO48 实测 |
+   |---|---|
+   | 4.7 kΩ | 2.35 V |
+   | 4×4.7k 并联 = 1.175 kΩ | 2.80 V |
+   | **0 Ω 直连** | **3.3 V** |
+4. **功能验证** (直连 3.3V 后):
+   - ✅ **SD 卡挂载成功**: `sd: SD mounted (15801 MB, asdfg)` —— 1-bit 模式
+   - ✅ **audio 自检 PASS** (`PA ON`): PA_EN = GPIO46, 改前 1.23V 根本拉不起来
+   - ⚠️ **4-bit 模式仍失败**在 `sdmmc_init_sd_ssr` ⇒ 疑 DAT1~3 (GPIO40/41/42) 连接问题
+     (SCR 是第一个用 D0 线的命令, 1-bit 下通过; 切 4-bit 后第一个读命令就死)
+
+### 新增/修复的工具
+- `tools/gp_sweep.py` — 自动下发 gp 命令 + 记录万用表读数 (`--stage gp|ldo`)
+- `firmware/main/bringup.c` — 新增控制台命令 `ldo <1-4> <mv>`
+- `tools/serial_console.py` — 修"吃首字符" (连接后先发换行热身; 曾害得整轮 LDO 验证白跑)
+- `tools/ai_flash.py` — 修 flash_args 路径二次拼接 (cwd=build_dir 时须用绝对路径)
+
+### 仍待解决 (与本发现无关的独立问题)
+1. **I2C 总线**: `scan` 在 400kHz 下**所有地址都 FOUND 且 reg0=0x00** (总线恒低的特征);
+   本日志记过"降到 100kHz"曾解决同类现象 ⇒ **touch / nfc / imu 三个自检失败同源**
+2. **DAT1~3**: 4-bit SD 失败, 需量模组 pin68/69/70 ↔ TF1 pin8/1/2 通断
+3. **MPU-6500**: `WHO_AM_I=0x00` (U7 焊接疑点)
+4. SD 驱动**当前临时强制 1-bit** (`sd_card.c` 去掉 `SDMMC_HOST_FLAG_4BIT`)
+5. 测试用的那张卡是**别的设备的 Linux 系统盘** (ZIMAGE / ROOTFS.GZ / BOOT.SCR / MYD-Y6..DTB),
+   只读挂载导致 `open write FAIL` —— 验证写操作要换空卡
+
+## 2026-09-17 (星期四) — 🧹 仓库整理: 清理 bring-up 临时文件
+
+**问题**: 根目录堆了 100+ 个 `_` 前缀的一次性调试脚本和串口日志（其中 60 个已误入库），
+pc-host 混着 7 张显示调试截图，推流脚本 4 个版本并存，模块手册 PDF 存了两份重复。
+
+**处理**:
+- 删除 90 个根目录 `_` 文件（一次性调试 py / 串口日志 txt / 被 `tools/ai_flash.py` 取代的旧烧录 ps1）。
+- 删除 pc-host 调试产物 (`debug_frame*.png` `crosshair_test.png` `decoded_from_jpeg.png` `_send_red.py`)
+  与 `test-assets/` 5 张无引用测试图；推流脚本只留当前在用的 `stream_final.py`。
+- 删除重复的 `P4C6核心板说明书.pdf`（与 `ESP32-P4C6-Core核心板_使用指南260413.pdf` MD5 相同）、
+  `_jlc20_extract/`（JLC/*.epro2 的解压副本）、空目录 `build/` `scratch/`。
+- 归档: `_MT3608.pdf` → `hardware/datasheets/`；V1 strap 烧录三件套 → `tools/flash-v1/`（带 README）；
+  人设图 → `docs/assets/`；`debug-report.md` 与两份根目录笔记 → `docs/notes/`。
+- `.gitignore` 补 `firmware_c6/` 的构建产物规则；`tools/ai_flash.py` 的 `STALE_PAT` 同步去掉已删脚本名。
+
+**回滚**: 删除前的完整快照在仓库外 `D:\vscode\vbcpet_cleanup_backup_20260917.zip` (4.0MB / 107 文件)；
+已入库的文件也可直接 `git restore`。
+
+## 2026-09-09 (星期三) — 🎊 Live2D 推流上屏成功! 全链路打通 (下午-晚间)
+
+### 📌 当前状态快照 (2026-09-09 晚, Phase 4 最终板)
+
+**✅ 已验证可用:**
+| 项 | 状态 | 说明 |
+|----|------|------|
+| 烧录 | ✅ | strap(GPIO35→GND,GPIO36→3V3)+RST1 进下载 → esptool 460800 单进程; `dl` 需控制台存活 |
+| 屏幕点亮 | ✅ | 开机自动初始化 (SKIP_DISPLAY=n), 无需控制台; DSI 2-lane 820Mbps PLL_F20M |
+| JPEG 解码→刷屏 | ✅ | PPA 硬解 480×800 RGB565 → PSRAM fb → DPI, 首次在此板验证通过 |
+| Live2D 推流 | ✅ | stream_final.py → COM8@2M → demux v2 → 屏, ~42KB/帧 @2.5fps, 颜色正常 |
+| 串口日志 | ✅ | ESP_LOG @2M 经推流链路回传 (streamer [FW] 前缀中继) |
+| 外设 bring-up | ✅ | 按键/SK6812/Audio/MPU(疑似虚焊)/USB-host 初始化正常; Touch 未接/SD 未插 |
+
+**⚠️ 已知问题 (按优先级):**
+1. **控制台僵化**: UART0 控制台任务复位后 1-3 分钟内冻结 (今日复发 4+ 次), `dl`/命令全失效 → 只能 strap 烧录。**待修 (固件 bug, 疑与 VFS/UART RX 相关)**
+2. **残留噪点**: 画面偶发雪点 — 若持续, 试 lane 820→500Mbps (信号余量) 或查 FPC 接触
+3. **帧率 2.5fps**: 瓶颈 = Playwright 截图延迟 (~300ms) + 2M 链路带宽; 可调 quality/delay/viewport
+4. **清晰度**: quality 70 仍有 JPEG 软化, 提高 quality 会降帧率 (权衡)
+5. MPU-6500 WHO_AM_I=0x00 (U7 焊接疑点, 旧问题)
+
+**📋 下一步建议:**
+1. 修控制台僵化 (console_task 卡死原因排查 — 疑点: UART RX VFS 短读/换行处理)
+2. 帧率优化: 截图 → JPEG 编码 → 串口 三段流水线化 (当前串行)
+3. Claude 交互桥接回 serial_bridge (say/面板/按键授权走新链路)
+4. 触摸控制器接上 (I2C 探测)
+5. V2 板打样回来后: 背光 PWM 换脚 (GPIO48→非1.2V域), 保留本次全部驱动修复
+
+**🔧 本次新增/修改的文件:**
+- 固件: `display_pipeline_dsi.c`(重写) `channel_demux.c`(v2 重写) `transport_uart.c`(新) `transport.h` `vbcpet_main.c` `display_pipeline.c` `CMakeLists.txt` `Kconfig.projbuild` `components/esp_lcd_st7102/`(vendored osptek)
+- PC: `pc-host/stream_final.py`(新) `_send_red.py`(测试)
+- 脚本: `_build_osptek.bat` `_flash_osptek.ps1` `_sync_flash3.ps1`
+- 配置: `sdkconfig`(TRANSPORT_UART/CONSOLE@2M/FREERTOS_HZ=1000/SKIP_DISPLAY=n) `dependencies.lock` `idf_component.yml`
+
+---
+
+> 承接上文屏驱动换版。屏幕点亮后, 同日完成 **Live2D 实时推流上屏**, 过程中又挖出并修掉两个深层 bug。
+
+### 推流链路重构 (USJ → UART0)
+- 发现 V1 板 **USJ(GPIO24/25) 物理上被设计成舵机 PWM 输出** (final-pinmap.md:141), 推流原走 USB-Serial-JTAG 的路径在最终板不存在。
+- 方案: **UART0/CH340 @2M 复用链路** — 新增 `transport_uart.c` (Kconfig: VBCPET_TRANSPORT_UART + VBCPET_UART_BAUDRATE=2000000, UART_SCLK_XTAL 精确分频), app_main 按编译开关选择 transport。
+- console 让位: CONFIG_ESP_CONSOLE_NONE=y + bringup_start_console() 跳过 (两个读者会抢 UART0 字节)。
+- 帧协议不变: `FRAME:%08x\n` + JPEG (≤64KB, demux 缓冲上限)。
+
+### 烧录基础设施 (本次沉淀)
+- 板载串口实为 **CH340=COM22/COM8** (重插后端口号会变!); COM10 (CH343) 是**别的设备**, 曾误盯数小时。
+- 板载无 DTR 自动复位电路 → esptool `default_reset` 无效; 进下载模式两条路: ① 控制台 `dl` (固件僵死时无效) ② **strap GPIO35→GND + GPIO36→3V3 + RST1** (最可靠)。
+- 控制台"僵化"bug 当天复发 4+ 次: 控制台在复位后只存活约 1-3 分钟。**strap 是唯一可靠烧录入口**, 相关脚本: `_build_osptek.bat` / `_flash_osptek.ps1` / `_sync_flash3.ps1`。
+- 大坑: 残留后台进程占串口 (streamer/monitor/僵尸 watcher) 会把 esptool 全部挡成 `port busy` 或 `No serial data` — 烧录前必须清场 (`Get-CimInstance Win32_Process` 查 python/powershell 占用)。
+
+### 🐛 挖出深层 bug #1: channel_demux 每次 poll 只读 1 字节
+- `channel_demux_poll()` 旧版 `recv(&ch, 1, 0)` + 主循环 `vTaskDelay(1)` (10ms tick) → 消费速度 ≈ **100-1000 B/s**, 而 2M 推流 200KB/s → 64KB RX ring 1 秒溢出, **99.9% 帧数据被丢**, 帧头永远凑不齐。
+- 此架构为旧 USJ 低速时代设计, 最终板上从未被真正压测过。
+- **修复**: 批量排空 (每 poll 最多 16×512B, 逐字节喂状态机; 大载荷转 read_n 批量收)。
+
+### 🐛 挖出深层 bug #2: 帧协议失步 (按行解析遇到二进制)
+- JPEG 二进制随机含 0x0A, v1 demux 按行解析: 一旦错过帧头 (波特率竞态/启动时序), 帧头前垃圾把行弄脏, `FRAME:` 永远不在行首 → **解析器永久失步**, JPEG 载荷被当文字灌给引擎 (`CTRL:{"t":"user_text","text":"乱码"}` 每秒数百条, 实测日志)。
+- **修复**: demux v2 二进制自同步 — 在字节流**任意位置**扫描 `FRAME:` 6 字节魔数 (JPEG 误同步概率 ≈2^-48), 命中后读 8 位 hex 长度 + 载荷, 失步最多损失一帧。实测启动期失步 4 条乱码行后自动锁定, 之后零误码。
+
+### 🎨 颜色修正 (两轮实验)
+- 面板侧 BGR (LCD_RGB_ELEMENT_ORDER_BGR): 实测无改善 → 回退 RGB。
+- **解码器侧 BGR** (JPEG_DEC_RGB_ELEMENT_ORDER_BGR, display_pipeline.c): ✅ 颜色正常。
+- 噪点: JPEG quality 55→70 后明显减少 (压缩伪影成分为主)。
+
+### ✅ 最终状态 (2026-09-09 晚)
+- **Live2D (Hiyori) 实时动画上屏**, 颜色正常, 画质可用。
+- 推流: `pc-host/stream_final.py --port COM8 --baud 2000000 --quality 70`, ~42KB/帧 @ 2.5fps (瓶颈: Playwright 截图延迟 + 2M 链路带宽)。
+- 固件: 开机自动初始化屏幕 (SKIP_DISPLAY=n), 无需控制台干预; [FW] 日志经推流链路回传 (streamer 中继打印)。
+- 待优化 (不阻塞): ① 帧率 2.5→8fps (降 quality/缩 viewport/截图提速) ② 残留噪点观察 (若为 DSI 误码试 lane 820→500) ③ 控制台僵化 bug 修复 ④ 颜色/触控细节微调。
+
+## 2026-09-09 (星期三) — 🔧 屏驱动换版: kevincoooool 社区组件 → 屏厂 osptek 官方驱动 (3 处实质修正, 编译通过待烧录)
+
+### 背景
+- 屏 YDP430BT009-V1 (ST7102 480×800) 从未点亮过。此前 DSI 强制初始化 (`lcd`) 卡死在 `esp_lcd_new_dsi_bus` busy-wait, 当时归因 "屏未接/lane 未到屏"; 背光链路已毕业 (板端拓扑修复 + 屏内 LED 串损坏待换屏)。
+- 屏与模组本就同厂 (鱼鹰光电 = OSPTEK), 屏厂在 gitee 开源了同型号屏的完整资料与示例: `gitee.com/osptek/4.3-tft-480x800-mipi-st7102` → `versions/YDP430BT009-V1/` (含 ST7102 datasheet、外形图、厂商 init 序列 `GX09C_ST7102+BOE4.3_2LANE_90HZ.c`、ESP32-P4 示例工程、树莓派5/_linux 设备树)。
+
+### 对比结论: 社区组件与屏厂组件同源, 但固件集成层有 3 处实质问题
+1. **DSI PHY 供电缺失 (头号嫌疑)**: ESP32-P4 的 VDD_MIPI_DPHY 必须由内部 LDO_VO3 输出 2.5V, osptek 官方示例在 `esp_lcd_new_dsi_bus` **之前**必调 `esp_ldo_acquire_channel(chan 3, 2500mV)`。旧固件完全没有这一步 → PHY 无电 → PLL 永不锁定 → `esp_lcd_new_dsi_bus` busy-wait 卡死 — 与之前记录的 "DSI HOST busy-wait" 症状完全吻合 (A6=0x500A0000 崩溃点)。
+2. **PHY PLL 参考时钟选错常量**: 旧代码注释写 "显式用 XTAL 40MHz" 但实际写的是 `MIPI_DSI_PHY_PLLREF_CLK_SRC_RC_FAST` (内部 RC ~17.5MHz 高漂移, 不适合做 DPHY PLL 基准)。IDF 5.5.3 对 rev≥v1.3 的官方 DEFAULT 就是 XTAL。已改为 `MIPI_DSI_PHY_PLLREF_CLK_SRC_XTAL`。
+3. **lane 速率 500 → 820 Mbps** (屏厂示例值, GX09C 2LANE 工程同款)。
+4. (附) **init 序列换为屏厂专用序列**: 旧用的 kevincoooool 默认序列参数对应别的屏; 屏厂 GX09C 序列含本屏 BOE 4.3" 面板专用 VGH/VGL(0xB0=22 57..)/Source(0xB7=64 64)/VCOM(0xBF=B4 B4)/Gamma(0xC8/C9)/GIP(0xD7,A3,A6,A7,AC,AD) 参数, 0x11 退 sleep 延时 600ms (旧 120ms 过短), 尾部 0x35 (TE on)。
+
+### 改动清单
+- **vendored 屏厂组件**: `firmware/components/esp_lcd_st7102/` ← osptek 示例组件原样拷入, 仅 2 处 IDF 5.5.3 适配 (`color_space`→`rgb_ele_order` 改名; DPI 宏按 IDF 版本填 `in/out_color_format`)。见组件内 README.md。
+- **依赖切换**: `main/idf_component.yml` 移除 `kevincoooool/esp_lcd_st7102`; `managed_components/` 里旧组件已删; `dependencies.lock` 已更新 (现仅 esp_codec_dev + idf)。
+- **`display_pipeline_dsi.c` 重写**: +`dsi_phy_power_on()` (LDO VO3 2.5V, 建总线前) / lane 820Mbps / XTAL 基准 / `vendor_config.init_cmds` 传屏厂 GX09C 序列 / init 后显式 `disp_on_off(true)`。引脚/背光/SKIP 逻辑不变。
+- **构建脚本**: `_build_osptek.bat` (需 `IDF_PYTHON_ENV_PATH=D:\Espressif\python_env\idf5.5_py3.11_env`, 否则 export.bat 会算错成不存在的 py3.14 环境; bat 内勿写中文注释 — GBK 代码页下乱码执行)。烧录 `_flash_osptek.ps1` (默认 COM10 = CH343, esptool 参数沿用已验证的 no_reset 重试循环)。
+- **编译通过**: `vbcpet.bin` 0xE63E0 字节 (app 分区余 10%), BUILD_EXIT=0。
+
+### 结果 ✅ 屏幕点亮 (2026-09-09 当日完成验证)
+- **烧录链路澄清**: 板子串口是 **CH340=COM22**; 之前一直无应答的 COM10 (CH343) 是**别的设备**(误盯半天)。板载无 DTR 自动复位电路, `default_reset` 无效; 控制台僵死时唯一入口 = **strap (GPIO35→GND, GPIO36→3V3) + RST1** 进下载; 控制台活时 `dl` 免 strap。esptool 单进程 460800 `--before no_reset --after no_reset_stub` 沿用。
+- **验证过程 (三轮烧录迭代)**:
+  1. LDO VO3 OK → `phy_clk_src=XTAL` 直接 `abort()` — `mipi_dsi_ll.h:272`: P4 (rev<3.0) 的 DPHY PLL 参考时钟 mux **仅支持 PLL_F20M/RC_FAST/PLL_F25M, 无 XTAL** → 改 `PLL_F20M` (IDF 对 v1.3 的官方 DEFAULT; 之前 "F20M 锁不定" 实为 PHY 未供电)。
+  2. PLL locked (史上首次!) → `new_dsi_bus ret=0` → 又卡死: 组件构造函数在 `esp_lcd_panel_reset` **之前**就读 ID (0x04 BTA 读), 而 LCD_RST(GPIO20) 上电浮空、屏躺在 reset 状态 → `mipi_dsi_hal_host_gen_read_short_packet` 无超时忙等 (A4=0x500a0000) → 加 `panel_hw_reset_early()` (RST 低 10ms→高→600ms, GX09C 时序) + bring-up 期间跳过 ID 读 (组件内 `#if 0`; LP 写事务不要求面板应答, 不会挂)。
+  3. **终验全链路零卡死**: HW reset → LDO VO3 2500mV OK → PLL locked → `new_dsi_bus ret=0` → DBI IO → ST7102 panel → 屏厂 GX09C 序列 (Sleep Out 600ms → Display On → TE) → DPI 视频 + 渐变图案 → 背光 100% → **屏幕点亮, 显示紫红黄渐变 ✅** (用户实屏确认)。
+- **结论**: 黑屏根因 = 驱动/固件层四项 (① DSI PHY 未供电 ② PLLREF 常量选错 XTAL·RC_FAST ③ 面板未复位先读 ID ④ init 序列非本屏参数), 换 osptek 官方驱动 + 上述修正后解决。8-24 "屏内 LED 串损坏" 结论作废 (灯珠正常, 已更正)。
+- **遗留/后续**: ① 点屏已验证, 可恢复 ID 读做诊断 (组件 `#if 0` 处); ② 若后续图像异常 (花屏/偏色) 再查 FPC lane 交叉 (display_pipeline_dsi.c 头注); ③ GPIO48 1.2V IO 域驱动 MT3608 EN 的 V2 修改清单仍有效; ④ 控制台"僵化"固件 bug 待修 (本次多次复发, strap 是唯一可靠恢复烧录的路径)。
+
+## 2026-08-24 (星期一) — 🔧 换新核心后烧录通道恢复: 根因 R12 开路(strap 上拉失效)
+
+### 事件
+- P4C6-Core 主控烧毁(5V 打地)后换新核心, V1 板重烧固件: 换芯后 esptool 全线 `No serial data`(115200/460800 均败, 多轮全灭) → 多轮排查 → **最终根因: R12 开路(4.7kΩ strap 上拉失效), 换新后烧录通道彻底打通**。
+
+### 症状链与排查记录
+- 电源实验: USB 电脑口供电 → 芯片 20ms 级 POWERON 循环复位; 换 2A 充电器 → 半稳(出现过两次干净 `waiting for download`); 再并 470µF 电解 → 完全静默。
+- **触摸实验(关键线索)**: 手指摸 R11(10kΩ, CHIP_PU 附近上拉)→ 持续复位、ESP-ROM 乱码刷屏; 金属/电容引脚短碰 R11 → 单次干净复位 `boot:0x7 DOWNLOAD + waiting for download`。判定板上有高阻浮空节点, 人体耦合可触发复位。
+- esptool 偶发握手成功一次: `Chip is ESP32-P4 (revision v1.3)`, 擦除 OK, 写入 65% 时 `The chip stopped responding`。
+- 时序洞察: **0x45(`Invalid head of packet`, 收到 'E') ≠ No serial data** —— 0x45 = 链路通但 sync 撞上 ROM 打印流; 静默 ≠ 在下载等待(ROM 等待可能超时转 SPI 启动出厂固件, 出厂固件不打印 UART)。
+
+### 根因
+- **R12 = 4.7kΩ ±1% 0603 厚膜电阻**(LCSC `RC0603FR-0715RL` 类/阻值 4.7kΩ), 模组 strap/上拉网络成员。R12 开路 → 关键 strap 引脚浮空 → strap 采样失效 → 芯片从 SPI 启动(出厂固件静默) 或下载窗口时有时无, 表现酷似电源不稳。
+- 修复: 更换 R12 → 上拉恢复 → 稳定进 `DOWNLOAD + waiting for download` → esptool 正常连接烧录。
+
+### 结果 ✅ 烧录 + 启动确认
+- 换 R12 后 esptool 一次通过: bootloader 23552B + partition 3072B + app 941056B @115200, 三镜像 `Hash of data verified`(写入耗时 92.3s)。
+- 拔 strap 飞线后按 RST1 → `boot:0xf (SPI_FAST_FLASH_BOOT)` → ESP-IDF v5.5.3 bootloader → app 正常启动。
+- 启动日志健康: PSRAM 32MB(200MHz), 按键×4 / SK6812×4 / Audio / USB-Serial-JTAG / 控制台全 ready, `Main loop` 运行中。
+- 遗留旧问题(非本次引入): MPU-6500 WHO_AM_I=0x00(期望 0x70, U7 焊接疑点), SD 卡未插, Touch 控制器未探测。
+
+
+### 背光链路大案 (2026-08-24 同日, 重大)
+> 跨多轮排障, 最终破案: **V1 背光不亮 = 两个叠加原因: ① 板端 boost 拓扑错误 ② 屏内 LED 串损坏(疑似雷电4高压灌入事故遗留)。**
+
+**① 板端拓扑错误 (根因一, 之前一直没抓到)**
+- 从 V2 工程解析出真实网络: 电感 L3(10µH) 接在 **SW(pin1)──D2 之间**, 而 VIN(3V3) 直进芯片 pin5, **SW 与 3V3 之间没有电感** → 标准 boost 必须 `3V3─L─SW─D2─输出`; 原接法充电阶段电感无能量源, 芯片电流环路无法建立 → SW 恒 0V, 换多少颗芯片都不工作。
+- 修复(V1 飞线): L3 一端从 D2 阳极改接 3V3, D2 阳极直接挂 SW → 上电 SW=0.9V(开关正常), 空载 LEDA=20V(升压能力 OK)。
+- **MT3608 手册核对** (LCSC 官方 PDF 8 页): pin1=SW, pin2=GND, pin3=FB(0.6V), pin4=EN(High≥1.5V/Low≤0.4V, 不用时接 VIN 自动启动), pin5=VIN(2~24V), pin6=NC; UVLO=1.98V; 最大占空比 90%@VFB=0V。
+- **GPIO48 之谜**: 官方核心板手册确认 pin76=GPIO48, 复用 SD1_CDATA7/GMAC_RXER = **SDIO/EMAC 1.2V IO 域**, 输出高仅~1V, 远低于 EN 阈值 1.5V → 用 GPIO48 驱动背光 EN 是引脚选择错误(之前误以为板上有漏电拉低)。GPIO46/47/49/50 同域, V2 必须避开。
+- **R12 身份更正**: R12 = LEDK↔GND 恒流检流电阻(15Ω, 0.6V/15Ω=40mA), 之前误记为 strap 上拉电阻。更换 R12 使"下载恢复"或与 strap 无关, 待考证。
+
+**② 屏内 LED 串损坏 (根因二)**
+- 屏规格: 480×800 DSI, 背光 **8 LED 4串2并**, Vf≈12V@40mA。
+- 实测插屏: LEDA=9.58V, LEDK=0.39V(≈26mA), 跨 LED 串 9.19V → 4 串 Vf(12V) 下不应导通, 但 26mA 存在+黑暗中微亮 → **部分 LED 损坏致有效 Vf 降至 ~9V**。
+- 事故史吻合: 早期屏/板可能被 Thunderbolt 4 高压灌过, 屏背光从无点亮记录。
+- 待办: 商家确认维修/换屏; 换屏后验证背光+DSI(`lcd`)。
+
+**最终定案 (2026-08-24)**
+- 电源对照实验: VIN=3.3V 正常(空载 LEDA=22V), VIN=5V(IP5306 VOUT) 完全不工作(SW 直通)——IP5306 5V 轨为"软轨"(USB 输入仅 4.6V、轻载打嗝、无输入电容), 与 1.2MHz 开关负载不匹配。**V1 定案: 背光用 3.3V 供电**(MP2315 硬轨+470µF), 足够满足 12V/40mA。
+- 插屏验证: LEDA=9.7V / LEDK=0.4V(26mA 恒流) / 微亮 → 屏内 LED 串部分损坏(有效 Vf 降至 ~9.3V), **换屏**。板子背光链路毕业。
+- 待办: 换屏后验背光+DSI(lcd); V2 背光修改清单(拓扑 L 位、BL_PWM 避开 GPIO46-50、LEDA 加输出电容, 供电路径别用 IP5306 VOUT)。
+> **✅ 更正 (2026-09-09)**: 屏背光灯珠**复测正常**, 8-24 "屏内 LED 串部分损坏/微亮 → 换屏" 结论**作废** — 当时的 26mA/微亮读数更可能出现在恒流环非设计工作点, 黑屏主因就是**驱动/固件层问题**(DSI PHY 未供电、PLLREF 误选 RC_FAST、lane 速率、init 序列非本屏参数, 详见 2026-09-09 条目)。换屏计划取消, 直接烧新驱动验证。
+### 教训(下次避免)
+1. **strap/复位上拉电阻坏 ≈ 电源不稳的假象**: 症状全是复位循环/时序敏感/No serial data, 极易误判为供电问题。优先用万用表量 strap 引脚电压 + 查上/下拉电阻阻值, 别急着换电源。
+2. 静默三态判读: (a) 稳定 `waiting for download` = 好, 立即烧; (b) 出厂固件 silent = 需复位进下载; (c) 复位循环间隙 = 假静默。
+3. 调试时手指远离高阻上拉区(10k/4.7k 节点); 需要手动复位用金属镊子/电容引脚短碰, 比手指干净(手指=持续干扰刷屏)。
+4. esptool 参数已定型: 单进程、`--no-stub`、115200、`--connect-attempts 30`、`--before no_reset`(CH340 无 DTR 自动复位); 烧录中途手勿碰板。
+5. V2 板: 对 strap/CHIP_PU 上拉电阻(R11/R12 类)加测试点; 贴装后目检 + 万用表量 strap 电压再上电。
+
+## 2026-08-18 (周一) — 状态灯 + 屏幕背光排障 + ⚠️ 主控烧毁(5V打地) + V2 路线图
+> ⚠️ **事故**: 调试中 5V 线误碰板子 GND 打火 → 5V 主干塌到 4.2V → P4 核心 100°C+ → 3.3V 对地短路 → **P4C6-Core 主控模块 die 烧毁**(3.3V 轨已短路, 待换新模块)。
+> 复盘: 板上 F1 实为 **0Ω 跳线(替保险丝)**, 主电源无真保险 → 浪涌直灌 P4。**下一代板设计教训已写入 [hardware/upgrade-roadmap-v2.md](hardware/upgrade-roadmap-v2.md)。**
+
+### SK6812 状态灯 (完成)
+- 4 颗按键背光 LED 兼任状态灯: 低亮度 7%, 蓝启动/绿ok/黄warn/红err/灭。
+- 命令: `led <ok|warn|err|boot|off>`; `test all` 完自动按结果点亮(selftest 返回 P/F 计数)。实板五种颜色与熄灭全部验证通过 ✅。
+
+### 屏幕背光排障 (未解, 主控已烧)
+- 现象: 屏插着板子正常 boot(拖垮解除), 但背光 100% 不亮, DSI 强制初始化(`lcd`)卡死。
+- 诊断: 新增 `bl`(背光隔离,不碰DSI) + `gp`(通用GPIO 驱动高/低/读回/释放) 命令。
+- 读数: GPIO48(EN) 驱动高=仅1.2V(<MT3608 EN 门槛1.5V), 驱动低=0V, 读回=高; LED_A=0.08V(升压未起); EN网络对地16MΩ/对3.3V 4.2MΩ(悬空)。3V3轨 8.24k(健康)。线索指向 MT3608 焊反/EN引脚内部结构, 未能继续(事故中断)。
+- 经验: DSI 初始化卡死 = 之前记录过的 DSI HOST busy-wait(esp_lcd_new_dsi_bus 起), 屏未接/lane 未到屏。
+
+### 顺带修复
+- `display_backend_init` 重构: SKIP 分支 + `display_backend_request_init()`(lcd 强制) + `display_backend_enable_backlight()`(bl 隔离) 拆分, 避免 SKIP 卡死。
+
+### 下一步 (按 V2 路线图)
+1. 换新 P4C6-Core 模块前: 先给 F1 换真 PPTC 保险 + 3.3V TVS + 查 IP5306/MP2315 有无被打伤。
+2. 屏幕侧: MT3608 方向确认/重焊; DSI lane 顺序验证(需测试点)。
+3. 固件: 修控制台"僵化"(空闲看门狗)。
+
+## 2026-08-18 (周一) — 烧录管线打通 + dl 免strap + 外设状态澄清
+
+### 核心突破: 烧录管线打通
+- **根因**: strap "一直无效" 是复位方式问题 —— GPIO35/36 strap 完全有效, 需 **RST1 硬复位(CHIP_PU)** 而非断电重上电(板载 RST1 存在); 断电报 IP5306/时序下 strap 采样不干净。
+- 手法: 跳线 GPIO35(pin62)→GND + GPIO36(pin63)→3V3 → 按 RST1 → `boot:0x7 (DOWNLOAD(USB/UART0/SPI)) waiting for download` → esptool 单进程 `write_flash` 成功(三镜像 Hash 校验)。
+- 坑: ① esptool 两进程(read_mac 后 write_flash)会被 RAM-stub 破坏 → 单进程或全程 `--no-stub`; ② 板面控制台在长串口会话后偶发"僵化"(需 RST 恢复) — 待修固件问题。
+
+### dl 软件免strap 验证成功
+- 新增串口命令 `dl`: 置 LP_SYSTEM_REG_SYS_CTRL_REG(0x50110008) bit2 FORCE_DOWNLOAD_BOOT + esp_restart → 直接进下载模式, **零 strap**。
+- 实测 `dl → boot:0x7 → esptool → DL-FLASH-OK hashes=3`; 全自动工作流(守望 app→发 dl→--no-stub 烧)跑通。**从此重烧=串口发 dl+esptool。**
+
+### USB-Serial/JTAG 架构更正 (重要, 推翻旧结论)
+- P4 的 USB-Serial/JTAG 在 **USB FSLS PHY0 = GPIO24/25 (USB1P1_N0/P0, 默认路由)**; **不在模组 pin48/49(USB2 HS UTMI, 那是板子 USB-C)**。
+- 所以"USB-C D+ 不枚举 = 主控坏"是**误判** —— USB-C 归 USB2 OTG 且根本是另一条路; USB-C 上那两根是对的(0V 正常)。
+- 验证: PC USB 信号线接 GPIO24/25 时 USJ 能枚举(PID_0012→1001 因构建而异); 但 app 的 servo_init(GPIO24/25) 抢焊盘 → 不稳定; MINIMAL_USJ 模式(不启 servo)下 USB 稳定。
+
+### 外设状态澄清 (重要, 校正中间结论)
+- **当前总线上没有 I2C 器件在用**: NFC 未焊、屏幕未插(touch 不在总线)、MPU-6500(U7) 焊了但疑似失败 → I2C 三项失败多为"器件未上板/未生效"。
+- GPIO8(SDA)/GPIO21(SCL) 空闲均 3.25V(健康); `i2c_master_probe` 全超时 + 直读"全 0x00" → 属空总线/驱动 behavior, **非 SDA 拉死**。
+- MPU WHO_AM_I=0x00 在 400k 与 100k 下均"成功读回 0x00" → U7 焊接/地址(AD0→0x68/0x69)待验证: 重焊后 `rd 68 75` / `rd 69 75`。
+
+### 固件迭代 (已烧入/编译验证)
+- 新增命令: `scan`(直读法, 不用 probe)/`rd <addr> <reg>`(原始 I2C 读, 打印 esp_err+值)/`reboot`/`dl`。
+- I2C 速度 Kconfig 化降为 100kHz(I2C_FREQ_HZ, 兼容弱上拉); 背光空指针保护; secondary console 关闭; MINIMAL_USJ 本地开关已清。
+- esptool/OpenOCD 助手: firmware/esp32p4-usj-flash.cfg + usj_flash.tcl + 根目录 _flash_*/_dlflash* 脚本。
+
 ## 2026-07-21 (周一)
 
 ### 代码整理与提交
