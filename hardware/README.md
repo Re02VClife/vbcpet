@@ -18,6 +18,7 @@ Phase 0 现成开发板去风险  →  选型定稿  →  原理图(EasyEDA Pro)
 |---|---|
 | [`phase0-report.md`](phase0-report.md) | **Phase 0 完成**：开发板验证报告（延迟/带宽/内存量化，2026-07 已做） |
 | [`bom.md`](bom.md) | 完整物料清单与选型理由 |
+| [`bom-lcsc.md`](bom-lcsc.md) | **嘉立创 EDA 导出料单**（48 项 / 81 颗，含 LCSC 编号）；原件 [`BOM_桌面开发助手.xlsx`](BOM_桌面开发助手.xlsx)，下单以 xlsx 为准 |
 | [`final-pinmap.md`](final-pinmap.md) | 最终板引脚分配（DSI/I2C/I2S/USB/按键/外设拓展） |
 | [`power-tree.md`](power-tree.md) | 电源树与各路电压/电流预算 |
 | [`block-diagram.md`](block-diagram.md) | 系统硬件框图 |
