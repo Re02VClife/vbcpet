@@ -10,7 +10,29 @@ ESP32-P4 是它的第一种身体，Live2D / VRM / PNG 帧序列是它现在的�
 > 角色表现参考 Neuro-sama，语音链路参考 xiaozhi-esp32。
 > 完整设计见 [`docs/architecture.md`](docs/architecture.md)、[`docs/plan.md`](docs/plan.md)、[`docs/decisions.md`](docs/decisions.md)。
 
-![人设概念图（暂定，Q 版形象适合小屏）](docs/assets/character-concept.jpg)
+## 文档索引
+
+| 文档 | 内容 |
+|------|------|
+| [`docs/architecture.md`](docs/architecture.md) | 系统架构：Character Runtime / 事件协议 / 双 DataChannel / 权限分级 / 数据流 |
+| [`docs/decisions.md`](docs/decisions.md) | 8 条 ADR：PC 渲染推流 · WebRTC 传输 · 可插拔导演 · 在位检测 · Phase 0 去风险 · 事件协议 · 双通道 · 权限三层 |
+| [`docs/protocol.md`](docs/protocol.md) | 通信协议规范 v1（信令 / 事件 schema / 路由规则 / 按键语义） |
+| [`docs/plan.md`](docs/plan.md) | 实施计划与 Sprint 拆分、关键风险 |
+| [`docs/wifi-camera-bringup.md`](docs/wifi-camera-bringup.md) | WiFi(C6) + OV5640 摄像头 bring-up 方案、C6 固件更新通道、V2「一根线刷两块板」目标 |
+| [`docs/webrtc-bringup.md`](docs/webrtc-bringup.md) | WebRTC 接收链路板到后 bring-up 清单 |
+| [`docs/live2d-soullink.md`](docs/live2d-soullink.md) | Live2D 情绪系统（soullink-emotion 集成）现状存档与调优入口 |
+| [`docs/live2d-comfyui.md`](docs/live2d-comfyui.md) | ComfyUI 换皮工作流使用说明、提示词模板、硬规则 |
+| [`docs/live2d-reskin.md`](docs/live2d-reskin.md) | 换皮指南：拆块 → 逐块生成 → 拼回 → 预览验证 |
+| [`docs/mateengine-notes.md`](docs/mateengine-notes.md) | MateEngine（Unity VRM 桌面伴侣）源码参考笔记 |
+| [`docs/open-source-references.md`](docs/open-source-references.md) | 参考开源项目索引（已采用 / 候选） |
+| [`docs/notes/display-debug-2026-07-21.md`](docs/notes/display-debug-2026-07-21.md) | 显示问题排查报告（6 个连环 bug 的根因） |
+| [`docs/notes/serial-bridge-quickstart.md`](docs/notes/serial-bridge-quickstart.md) | serial_bridge 快速启动备忘 |
+| [`docs/notes/p4c6-board-links.md`](docs/notes/p4c6-board-links.md) | P4C6 / WT9932P4-TINY 开发板资料链接 |
+| [`hardware/README.md`](hardware/README.md) | 硬件文档总览（BOM / 引脚 / 电源树 / 拓展 / PCB / bring-up / V2） |
+| [`hardware/flash-automation.md`](hardware/flash-automation.md) | 烧录自动化与排障 |
+| [`pc-host/README.md`](pc-host/README.md) | PC 主机栈模块总览、驱动 / Director / Risk 选型 |
+| [`live2d/electron/README.md`](live2d/electron/README.md) | 桌面桌宠（Electron 透明窗口）设计、参数、事件协议 |
+| [`PROGRESS.md`](PROGRESS.md) / [`WORKLOG.md`](WORKLOG.md) | 项目进度快照 / 每日工作日志 |
 
 ---
 
@@ -27,8 +49,8 @@ ESP32-P4 是它的第一种身体，Live2D / VRM / PNG 帧序列是它现在的�
 
 两条并行的落地路线，共用同一套渲染页与同一套情绪 API：
 
-- **蓝图层（WebRTC）**：`pc-host/host.py` 作为 WHIP 服务端，向 P4 推视频轨 + 双 DataChannel，P4 侧最终做硬解显示与传感器回传（对应 ADR-001/002/006/007/008）。
-- **实机层（当前在跑）**：V1 板屏幕挂在 UART0/CH340 上，PC 用 Playwright 截 Live2D 画面 → JPEG → `FRAME:` 协议 → 2M 串口 → P4 PPA 硬解上屏。**这条路已经把 Live2D 实时动画打上真机屏幕。**
+- **WebRTC**：`pc-host/host.py` 作为 WHIP 服务端，向 P4 推视频轨 + 双 DataChannel，P4 侧最终做硬解显示与传感器回传（对应 ADR-001/002/006/007/008）。
+- **串口**：V1 板屏幕挂在 UART0/CH340 上，PC 用 Playwright 截 Live2D 画面 → JPEG → `FRAME:` 协议 → 2M 串口 → P4 PPA 硬解上屏。**这条路已经把 Live2D 实时动画打上真机屏幕。**
 
 ---
 
@@ -256,7 +278,7 @@ npm start              # Live2D；npm run start:png / start:vrm 换模型
 
 `--director` 选 `heuristic`（默认，零成本规则压缩）或 `openai`（需设 `VBCPET_OPENAI_BASE` / `VBCPET_OPENAI_KEY` / `VBCPET_OPENAI_MODEL`）。
 
-### 5.6 推流上真机屏（V1 板当前方案）
+### 5.6 推流上真机屏
 
 ```powershell
 # A. 纯推流（含固件日志回显）
@@ -356,33 +378,11 @@ python tools\ai_flash.py --info                # 只读芯片信息
 
 ---
 
-## 八、文档索引
 
-| 文档 | 内容 |
-|------|------|
-| [`docs/architecture.md`](docs/architecture.md) | 系统架构：Character Runtime / 事件协议 / 双 DataChannel / 权限分级 / 数据流 |
-| [`docs/decisions.md`](docs/decisions.md) | 8 条 ADR：PC 渲染推流 · WebRTC 传输 · 可插拔导演 · 在位检测 · Phase 0 去风险 · 事件协议 · 双通道 · 权限三层 |
-| [`docs/protocol.md`](docs/protocol.md) | 通信协议规范 v1（信令 / 事件 schema / 路由规则 / 按键语义） |
-| [`docs/plan.md`](docs/plan.md) | 实施计划与 Sprint 拆分、关键风险 |
-| [`docs/wifi-camera-bringup.md`](docs/wifi-camera-bringup.md) | WiFi(C6) + OV5640 摄像头 bring-up 方案、C6 固件更新通道、V2「一根线刷两块板」目标 |
-| [`docs/webrtc-bringup.md`](docs/webrtc-bringup.md) | WebRTC 接收链路板到后 bring-up 清单 |
-| [`docs/live2d-soullink.md`](docs/live2d-soullink.md) | Live2D 情绪系统（soullink-emotion 集成）现状存档与调优入口 |
-| [`docs/live2d-comfyui.md`](docs/live2d-comfyui.md) | ComfyUI 换皮工作流使用说明、提示词模板、硬规则 |
-| [`docs/live2d-reskin.md`](docs/live2d-reskin.md) | 换皮指南：拆块 → 逐块生成 → 拼回 → 预览验证 |
-| [`docs/mateengine-notes.md`](docs/mateengine-notes.md) | MateEngine（Unity VRM 桌面伴侣）源码参考笔记 |
-| [`docs/open-source-references.md`](docs/open-source-references.md) | 参考开源项目索引（已采用 / 候选） |
-| [`docs/notes/display-debug-2026-07-21.md`](docs/notes/display-debug-2026-07-21.md) | 显示问题排查报告（6 个连环 bug 的根因） |
-| [`docs/notes/serial-bridge-quickstart.md`](docs/notes/serial-bridge-quickstart.md) | serial_bridge 快速启动备忘 |
-| [`docs/notes/p4c6-board-links.md`](docs/notes/p4c6-board-links.md) | P4C6 / WT9932P4-TINY 开发板资料链接 |
-| [`hardware/README.md`](hardware/README.md) | 硬件文档总览（BOM / 引脚 / 电源树 / 拓展 / PCB / bring-up / V2） |
-| [`hardware/flash-automation.md`](hardware/flash-automation.md) | 烧录自动化与排障 |
-| [`pc-host/README.md`](pc-host/README.md) | PC 主机栈模块总览、驱动 / Director / Risk 选型 |
-| [`live2d/electron/README.md`](live2d/electron/README.md) | 桌面桌宠（Electron 透明窗口）设计、参数、事件协议 |
-| [`PROGRESS.md`](PROGRESS.md) / [`WORKLOG.md`](WORKLOG.md) | 项目进度快照 / 每日工作日志 |
 
 ---
 
-## 九、参考
+## 参考
 
 - [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) — 语音 / 音频链路基座
 - [esp-webrtc-solution](https://github.com/espressif/esp-webrtc-solution) — WebRTC 传输
