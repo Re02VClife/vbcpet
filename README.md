@@ -148,7 +148,7 @@ PCB
 - **外设拓展已实装**：USB-A 外设口（FS OTG）、MPU-6500 六轴、microSD（SDIO 4-bit）、舵机 ×4（云台 Yaw/Pitch + 2 预留）、IP5306 电池、OV5640 摄像头（MIPI-CSI 2-lane）、NT3H2111 NFC、PN532 兼容。
 - **电源架构**：USB-C → CH224K（PD 9V，5V 回退）→ MP2315 Buck 3.3V@2A → 模组与外设；LDO 1.8V（触摸 / codec IO）；MT3608 升压驱动屏背光（8 LED 4S2P，恒流 R5 = 15Ω）。
 - **PCB**：8 组差分对（DSI / CSI 100Ω = 7.3mil，USB 90Ω = 9.5mil）、L2 功率电感足迹修正、电源线宽审查 —— 详见 [`hardware/pcb-layout-guide.md`](hardware/pcb-layout-guide.md)。
-- **文档齐全**：[`hardware/bom.md`](hardware/bom.md)（BOM 全部定稿）、[`hardware/final-pinmap.md`](hardware/final-pinmap.md)（88pin 完整分配）、[`hardware/power-tree.md`](hardware/power-tree.md)、[`hardware/expansion.md`](hardware/expansion.md)、[`hardware/upgrade-roadmap-v2.md`](hardware/upgrade-roadmap-v2.md)。
+- **文档齐全**：[`hardware/bom.md`](hardware/bom.md)（选型理由）+ [`hardware/bom-lcsc.md`](hardware/bom-lcsc.md)（**嘉立创导出料单：48 项 / 81 颗，含 LCSC 编号**，原件 `hardware/BOM_桌面开发助手.xlsx`）、[`hardware/final-pinmap.md`](hardware/final-pinmap.md)（88pin 完整分配）、[`hardware/power-tree.md`](hardware/power-tree.md)、[`hardware/expansion.md`](hardware/expansion.md)、[`hardware/upgrade-roadmap-v2.md`](hardware/upgrade-roadmap-v2.md)。
 
 ### 2.6 工具链
 
