@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>vbcpet VRM</title>
+<style>
+  body{margin:0;background:#335577;overflow:hidden}
+  body.transparent{background:transparent}
+  body.transparent #osd{display:none!important}
+  canvas{display:block}
+  #osd{position:fixed;top:2px;right:6px;color:#00aaff;font:12px/1.6 monospace;background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:3px;z-index:99;white-space:pre;}
+</style>
+</head>
+<body>
+<div id="osd">vrm: --</div>
+
+<!--
+  render_vrm.html — VRM 模型渲染页 (完整 VRM 1.0 支持)
+
+  两条加载路径，自动降级：
+    1) 优先 @pixiv/three-vrm (VRMLoaderPlugin) —— 完整 VRM 1.0 规范：
+       VRM 0.x / 1.0 的 springbone(弹簧头发/裙子)、lookAt(视线跟踪)、
+       blink(眨眼)、expressionManager(表情 blendshape 重定向)。
+    2) 回退 GLTFLoader —— 仅标准 glb/gltf + blendshape (无 springbone/lookAt)。
+
+  依赖：
+    - 联网: 走 jsDelivr CDN (下方 importmap)，零安装。
+    - 离线: cd live2d && npm install three @pixiv/three-vrm，
+            再把 importmap 里对应键换成 ./node_modules/... 路径 (见 live2d/models/README.md)。
+
+  与 render.html (Live2D) / render_png.html (PNG) 暴露完全相同的窗口 API：
+    window._ready, playMotion(n), setExpression(n,v),
+    applyEmotion(name,dur), sendMessage(text), setMood(v), getMood(),
+    getStatus(), getEmotionState()
+
+  资产参数 (URL query)：
+    ?model=models/myAvatar.vrm   或 .glb
+    ?scale=1 ?x=0 ?y=0 ?rotY=180 ?transparent=1
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.4.2/lib/three-vrm.module.min.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ── 可选依赖: @pixiv/three-vrm (完整 VRM 1.0) ──
+let VRMLoaderPlugin = null, VRMUtils = null, _vrmAvail = false;
+try {
+  const vrm = await import('@pixiv/three-vrm');
+  VRMLoaderPlugin = vrm.VRMLoaderPlugin;
+  VRMUtils = vrm.VRMUtils;
+  _vrmAvail = true;
+  console.log('[vrm] @pixiv/three-vrm 已加载 (完整 VRM 1.0 模式)');
+} catch (e) {
+  console.warn('[vrm] @pixiv/three-vrm 不可用，回退 GLTFLoader (纯 glb + blendshape):', e.message);
+}
+
+const _q = new URLSearchParams(location.search);
+let W = 480, H = 800;
+if (_q.get('res')) { const p = _q.get('res').toLowerCase().split('x').map(Number); if (p.length === 2 && p[0] > 0 && p[1] > 0) { W = p[0]; H = p[1]; } }
+
+window._ready = false;
+window._model = null;             // 兼容层：THREE.Group (or VRM scene)
+window._motions = [];
+window._expressions = [];
+window._emotions = ['neutral', 'happy', 'sad', 'surprised', 'angry'];
+window._mood = 60;
+window._moodText = null;
+window._currentEmotion = 'neutral';
+
+const MODEL_PATH = _q.get('model') || './models/Zome.vrm';
+const MODEL_SCALE = parseFloat(_q.get('scale') || '1');
+const MODEL_DX = parseFloat(_q.get('x') || '0');
+const MODEL_DY = parseFloat(_q.get('y') || '0');
+const MODEL_ROTY = parseFloat(_q.get('rotY') || (_q.has('rotY') ? 180 : 0));
+
+// 情绪 → 候选表达式名 (按优先级; VRM 1.0 用 happy/sad/angry/relaxed, VRM 0.x 用 joy/sorrow/fun/angry)
+// 命名约定参考 MateEngine UniversalBlendshapes: Joy→happy, Sorrow→sad, Fun→relaxed, Angry→angry
+const EMOTION_MORPHS = {
+  neutral:   ['neutral'],
+  happy:     ['happy', 'joy'],
+  sad:       ['sad', 'sorrow'],
+  surprised: ['surprised', 'surprise', 'fun'],
+  angry:     ['angry'],
+  // Zome 专属自定义表情 (VRM 0.x presetName=unknown, 按名称路由)
+  wink:      ['wink'],
+  niyari:    ['niyari'],
+  star:      ['star'],
+  heart:     ['heart'],
+  fun2:      ['fun2'],
+  sorrow2:   ['sorrow2'],
+  sorrow3:   ['sorrow3'],
+  // VRM 1.0 补充 (UniversalBlendshapes 的 Fun→relaxed 等)
+  relaxed:   ['relaxed'],
+  drowsy:    ['drowsy', 'sleepy']
+};
+
+let _morphTargets = {};           // fallback GLTF 路径: name -> { mesh, index }
+let _vrm = null;                  // three-vrm 实例 (expressionManager 等)
+let _vrm0Groups = null;           // VRM 0.x: 表达式名(小写) -> [{ mesh, index, weight01 }]
+
+const renderer = new THREE.WebGLRenderer({ alpha: _q.get('transparent') === '1', antialias: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(1);
+renderer.setClearColor(_q.get('transparent') === '1' ? 0x000000 : 0x335577, _q.get('transparent') === '1' ? 0 : 1);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = _q.get('transparent') === '1' ? null : new THREE.Color(0x335577);
+
+const camera = new THREE.PerspectiveCamera(25, W / H, 0.1, 50);
+camera.position.set(0, 1.3, 2.5);
+camera.lookAt(0, 1.1, 0);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x7a6f6f, 1.0);
+scene.add(hemi);
+const dir = new THREE.DirectionalLight(0xffffff, 1.4);
+dir.position.set(1, 2, 2);
+scene.add(dir);
+
+let _group = null;
+let _mixer = null;
+let _animClips = [];
+
+function _orient(model) {
+  model.rotation.y = THREE.MathUtils.degToRad(MODEL_ROTY);
+  return model;
+}
+
+// ── GLTF fallback 路径: blendshape 收集 ──
+function _collectMorphs(model) {
+  _morphTargets = {};
+  model.traverse((node) => {
+    if (node.isMesh && node.morphTargetInfluences && node.morphTargetDictionary) {
+      for (const k in node.morphTargetDictionary) {
+        _morphTargets[String(k).toLowerCase()] = { mesh: node, index: node.morphTargetDictionary[k] };
+      }
+    }
+  });
+}
+
+// ── VRM 0.x: 解析 blendShapeGroups (组合表情 + presetName 路由) ──
+async function _setupVRM0(gltf) {
+  const json = gltf.parser && gltf.parser.json;
+  const vrmext = json && json.extensions && json.extensions.VRM;
+  if (!vrmext || !vrmext.blendShapeMaster || !vrmext.blendShapeMaster.blendShapeGroups) return false;
+  _vrm0Groups = {};
+  for (const g of vrmext.blendShapeMaster.blendShapeGroups) {
+    const key = String(g.presetName || g.name || '').toLowerCase();
+    const binds = [];
+    for (const b of (g.binds || [])) {
+      let mesh = null;
+      try { mesh = await gltf.parser.getDependency('mesh', b.mesh); } catch (e) { mesh = null; }
+      if (mesh && mesh.isMesh && mesh.morphTargetInfluences) {
+        binds.push({ mesh: mesh, index: b.index, weight: (b.weight || 0) / 100 });
+      }
+    }
+    if (binds.length) _vrm0Groups[key] = binds;
+  }
+  window._expressions = Object.keys(_vrm0Groups);
+  console.log('[vrm] VRM 0.x blendShapeGroups:', window._expressions);
+  return window._expressions.length > 0;
+}
+
+function _applyMorph(name, value) {
+  const t = _morphTargets[String(name).toLowerCase()];
+  if (t) t.mesh.morphTargetInfluences[t.index] = value;
+}
+
+// 复位全部表情 (按当前后端)
+function _resetExpressions() {
+  if (_vrm && _vrm.expressionManager) {
+    try { _vrm.expressionManager.resetExpressions(); } catch (e) {}
+    return;
+  }
+  if (_vrm0Groups) {
+    for (const k in _vrm0Groups) {
+      for (const b of _vrm0Groups[k]) {
+        if (b.mesh && b.mesh.morphTargetInfluences) b.mesh.morphTargetInfluences[b.index] = 0;
+      }
+    }
+    return;
+  }
+  for (const k in _morphTargets) _morphTargets[k].mesh.morphTargetInfluences[_morphTargets[k].index] = 0;
+}
+
+// 大小写不敏感查找: 返回 VRM 1.0 expressionManager 里实际可用的表达式名
+function _findVrm1Expression(name) {
+  if (!_vrm || !_vrm.expressionManager) return null;
+  const nl = String(name).toLowerCase();
+  try {
+    const exps = _vrm.expressionManager.expressions || [];
+    for (const e of exps) {
+      if (e && e.expressionName && String(e.expressionName).toLowerCase() === nl) return e.expressionName;
+    }
+  } catch (e) {}
+  return null;
+}
+
+// 按名称应用单个表情 (值 0~1)，自动路由到 VRM 1.0 / 0.x / 纯 glb；名称大小写不敏感
+function _applyNamed(name, value) {
+  const nl = String(name).toLowerCase();
+  if (_vrm && _vrm.expressionManager) {
+    try {
+      _vrm.expressionManager.setValue(_findVrm1Expression(nl) || name, value);
+      return true;
+    } catch (e) { return false; }
+  }
+  if (_vrm0Groups && _vrm0Groups[nl]) {
+    for (const b of _vrm0Groups[nl]) {
+      if (b.mesh && b.mesh.morphTargetInfluences) b.mesh.morphTargetInfluences[b.index] = b.weight * value;
+    }
+    return true;
+  }
+  const t = _morphTargets[nl];
+  if (t) { t.mesh.morphTargetInfluences[t.index] = value; return true; }
+  return false;
+}
+
+// ── 表情应用: 复位后按候选名依次尝试 (VRM 1.0 expressionManager → VRM 0.x blendShapeGroups → 纯 glb) ──
+function _applyEmotionTarget(candidates) {
+  _resetExpressions();
+  return _applyEmotionWeighted(candidates, 1.0);
+}
+
+// 不复位地按权重应用 (供表情回落过渡用)
+function _applyEmotionWeighted(candidates, weight) {
+  for (const name of candidates) {
+    if (_applyNamed(name, weight)) return true;
+  }
+  return false;
+}
+
+// ── 通用 API ──
+window.playMotion = function (n) {
+  const clip = THREE.AnimationClip.findByName(_animClips, n);
+  if (clip && _mixer) {
+    const action = _mixer.clipAction(clip);
+    action.reset().play();
+    console.log('motion:', n);
+    return true;
+  }
+  console.log('motion stub:', n);
+  return false;
+};
+
+window.setExpression = function (n, v) {
+  return _applyNamed(n, v);
+};
+
+window.applyEmotion = function (name, duration) {
+  const candidates = EMOTION_MORPHS[name];
+  if (!candidates) { console.warn('Unknown emotion:', name); return false; }
+  window._currentEmotion = name;
+  const ok = _applyEmotionTarget(candidates);
+  console.log('emotion:', name, ok ? '(ok)' : '(no morphs)', JSON.stringify(candidates));
+  _updateOsd(name);
+  _scheduleEmotionDecay(name, duration);
+  return ok;
+};
+
+// ── 表情回落 (移植自 MateEngine UniversalBlendshapes 的 fade/hold 状态机) ──
+// 表情保持 holdMs 后，在 _EMOTION_FADE ms 内线性回落到 neutral（自然放松）
+let _decayTimer = null;
+let _decayRaf = null;
+const _EMOTION_FADE = 900;
+
+function _cancelDecay() {
+  if (_decayTimer) { clearTimeout(_decayTimer); _decayTimer = null; }
+  if (_decayRaf) { cancelAnimationFrame(_decayRaf); _decayRaf = null; }
+}
+
+function _scheduleEmotionDecay(name, duration) {
+  _cancelDecay();
+  if (name === 'neutral') return;
+  const hold = (typeof duration === 'number' && duration > 0) ? duration : 1800;
+  _decayTimer = setTimeout(() => _fadeToNeutral(name), hold);
+}
+
+function _fadeToNeutral(from) {
+  const cand = EMOTION_MORPHS[from];
+  if (!cand) return;
+  const start = performance.now();
+  function step(t) {
+    const k = Math.min(1, (t - start) / _EMOTION_FADE);
+    _applyEmotionWeighted(cand, 1 - k);
+    if (k < 1) { _decayRaf = requestAnimationFrame(step); return; }
+    window._currentEmotion = 'neutral';
+    _resetExpressions();
+    _decayRaf = null;
+    _decayTimer = null;
+    _updateOsd('neutral');
+  }
+  _decayRaf = requestAnimationFrame(step);
+}
+
+const _classifyLocal = (t) => {
+  t = String(t);
+  if (/喜欢|爱|开心|棒|好|谢谢|哈哈|可爱/.test(t)) return 'happy';
+  if (/气|烦|讨厌|滚|差|骂|烂/.test(t)) return 'angry';
+  if (/难过|伤心|哭|悲伤|失望|累|困/.test(t)) return 'sad';
+  if (/啊|哇|天|竟然|什么|惊/.test(t)) return 'surprised';
+  return 'neutral';
+};
+
+window.sendMessage = function (text) {
+  const emo = _classifyLocal(text);
+  window.applyEmotion(emo, 600);
+  console.log('message classified:', emo, JSON.stringify(text));
+  return { emotion: emo, variant: null, intensity: 0.7, sourceMessage: String(text) };
+};
+
+window.getStatus = function () {
+  const exprs = _vrm && _vrm.expressionManager
+    ? (_vrm.expressionManager.expressions ? _vrm.expressionManager.expressions.map(e => e.expressionName) : Object.keys(_vrm.expressionManager.expressionMap || {}))
+    : Object.keys(_morphTargets);
+  return {
+    ready: window._ready, motions: window._motions,
+    expressions: exprs, emotions: window._emotions,
+    currentEmotion: window._currentEmotion, mood: window._mood,
+    soullink: false, renderer: (_vrm && _vrm.expressionManager) ? 'vrm1.0' : (_vrm0Groups ? 'vrm0.x' : 'glb')
+  };
+};
+
+window.setMood = function (v) {
+  v = Math.max(0, Math.min(100, v));
+  window._mood = v;
+  let emotion = 'neutral';
+  if (v >= 80) emotion = 'surprised';
+  else if (v >= 65) emotion = 'happy';
+  else if (v <= 25) emotion = 'angry';
+  else if (v <= 45) emotion = 'sad';
+  // mood 是持久状态，不回落；事件驱动的 applyEmotion 才回落
+  _cancelDecay();
+  window._currentEmotion = emotion;
+  _applyEmotionTarget(EMOTION_MORPHS[emotion]);
+  _updateOsd(emotion);
+  return v;
+};
+window.getMood = function () { return window._mood; };
+window.getEmotionState = function () {
+  return { emotion: window._currentEmotion, variant: null, vad: null, facs: null, state: (_vrm && _vrm.expressionManager) ? 'vrm1.0' : (_vrm0Groups ? 'vrm0.x' : 'glb'), gain: 1, bodyGain: 1 };
+};
+
+function _updateOsd(name) {
+  const el = document.getElementById('osd');
+  const tag = (_vrm && _vrm.expressionManager) ? '[1.0]' : (_vrm0Groups ? '[0.x]' : '[glb]');
+  if (el) el.textContent = 'vrm: ' + name + '  mood:' + window._mood + ' ' + tag;
+}
+window._osd = _updateOsd;
+
+// ── 加载模型 ──
+const loader = new GLTFLoader();
+if (VRMLoaderPlugin) {
+  loader.register((parser) => new VRMLoaderPlugin(parser));
+}
+const _clock = new THREE.Clock();
+
+loader.load(
+  MODEL_PATH,
+  async (gltf) => {
+    _group = _orient(gltf.scene);
+    _group.scale.setScalar(MODEL_SCALE);
+    scene.add(_group);
+    window._model = _group;
+
+    // —— three-vrm 实例 ——
+    _vrm = gltf.userData.vrm || null;
+
+    // 居中 + 底部对齐
+    const box = new THREE.Box3().setFromObject(_group);
+    const center = box.getCenter(new THREE.Vector3());
+    _group.position.x = -center.x + MODEL_DX;
+    _group.position.y = -box.min.y + MODEL_DY;
+    _group.position.z = -center.z;
+
+    // 动画
+    _animClips = gltf.animations || [];
+    window._motions = _animClips.map(c => c.name);
+    if (_animClips.length) {
+      _mixer = new THREE.AnimationMixer(_group);
+    }
+
+    // —— VRM 1.0 专属: springbone + lookAt 视线 + 眨眼 ——
+    if (_vrm) {
+      window._expressions = [];
+      try {
+        if (VRMUtils && VRMUtils.rotateVRM0) {
+          // VRM 0.x 模型: 朝向 (因为已经统一 _orient, 这里不重复转)
+        }
+      } catch (e) {}
+      // 表情名列表 (供 getStatus)
+      try {
+        if (_vrm.expressionManager && _vrm.expressionManager.expressions) {
+          window._expressions = _vrm.expressionManager.expressions.map(e => e.expressionName);
+        }
+      } catch (e) {}
+      // 视线跟踪: 视线指向相机 (VRM 1.0 lookAt 默认朝向 +Z, camera 在 +Z)
+      if (_vrm.lookAt) {
+        _vrm.lookAt.target = camera;
+        try { _vrm.lookAt.faceTarget = true; /* 1.0 支持 faceTarget */ } catch (e) {}
+      }
+      console.log('[vrm] VRM 就绪 (springbone/lookAt/blink enabled), expressions:', window._expressions);
+    } else {
+      // 优先解析 VRM 0.x (extensions.VRM.blendShapeMaster), 其次纯 glb blendshape
+      const ok0 = await _setupVRM0(gltf);
+      if (!ok0) {
+        _collectMorphs(_group);
+        window._expressions = Object.keys(_morphTargets);
+        console.log('[vrm] 使用 GLTF blendshape (无 VRM 扩展), morphs:', window._expressions.length);
+      } else {
+        // VRM 0.x 规范模型面向 -Z，旋转 180° 使其面向相机 (+Z)
+        _group.rotation.y += Math.PI;
+      }
+      // 回退路径 (无 three-vrm) 用定时器驱动眨眼
+      _startFallbackBlink();
+    }
+
+    window._ready = true;
+    // 模型加载完成后自动应用 neutral 基线 + 视线
+    window.applyEmotion('neutral', 200);
+  },
+  (xhr) => {
+    if (xhr.total) console.log('vrm loading', Math.round(xhr.loaded / xhr.total * 100) + '%');
+  },
+  (err) => {
+    console.error('VRM load failed:', err && err.message, '(放 .vrm/.glb 到 models/, 或检查路径)');
+    window._ready = true;   // 避免 stream 卡等待
+  }
+);
+
+// ── 回退路径自动眨眼 (three-vrm 路径由 vrm.update 自带 blink) ──
+let _blinkTimeout = null;
+function _startFallbackBlink() {
+  if (_vrm || _blinkTimeout) return;
+  const schedule = () => {
+    _blinkTimeout = setTimeout(() => {
+      // 表情/回落期间不抢眨眼，避免视觉抖动
+      if (window._currentEmotion === 'neutral') {
+        _applyNamed('blink', 1.0);
+        setTimeout(() => _applyNamed('blink', 0.0), 130);
+      }
+      schedule();
+    }, 2800 + Math.random() * 2600);
+  };
+  schedule();
+}
+
+// ── 渲染循环 ──
+function _loop() {
+  requestAnimationFrame(_loop);
+  const dt = _clock.getDelta();
+  if (_mixer) _mixer.update(dt);
+  if (_vrm) _vrm.update(dt);   // springbone / lookAt / blink 每帧更新
+  renderer.render(scene, camera);
+}
+_loop();
+</script>
+</body>
+</html>

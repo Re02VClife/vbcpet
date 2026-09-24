@@ -25,6 +25,13 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 try:
+    from emotion_relay import relay  # noqa: F401  (情绪事件中继 → 双显 hub)
+    _RELAY_OK = True
+except Exception:  # noqa: BLE001
+    relay = None  # type: ignore[assignment]
+    _RELAY_OK = False
+
+try:
     import win32gui
     import win32api
     import win32con

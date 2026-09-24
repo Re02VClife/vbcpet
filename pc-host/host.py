@@ -34,6 +34,11 @@ from agent_driver import DriverCallbacks, PermissionRequest, Usage  # noqa: E402
 from fake_driver import FakeDriver  # noqa: E402
 from claude_driver import ClaudeDriver  # noqa: E402
 
+try:  # 情绪事件中继 (双显联动) — 可选，缺失时静默降级
+    from emotion_relay import relay  # noqa: E402
+except Exception:  # noqa: BLE001
+    relay = None  # type: ignore[assignment]
+
 log = logging.getLogger("host")
 
 _pcs: set[RTCPeerConnection] = set()
@@ -233,6 +238,12 @@ def _setup_channel_driver(channel, pc: RTCPeerConnection, kind: str, cwd: str | 
         # Live2D 只在这里驱动——_do_say 不再重复调 apply_avatar
         if live2d_track:
             asyncio.ensure_future(live2d_track.apply_avatar(act, emo, 0.6))
+        # 双显联动: 状态 → 情绪广播 (桌面窗口 + P4 via hub)
+        if relay:
+            relay.emit_emotion({"happy": "happy", "sad": "sad", "worried": "sad",
+                                "neutral": "neutral"}.get(emo, "neutral"))
+            if state == "done":
+                relay.emit_motion("celebrate")
 
     async def _do_say(text: str) -> None:
         result = await director.compress(text, _last_work_status)
@@ -240,6 +251,9 @@ def _setup_channel_driver(channel, pc: RTCPeerConnection, kind: str, cwd: str | 
         send(P.e_emotion(sg, action=result.action, emotion=result.emotion,
                          intensity=result.intensity), realtime=True)
         # Live2D 模型由 on_status 统一驱动，此处不重复调
+        # 双显联动: 对话文本 → 情绪广播 (桌面窗口 + P4 via hub)
+        if relay:
+            relay.emit_message(result.speech, emotion=result.emotion)
         log.info("↓ say(raw:%d -> speech:%d) %s",
                  len(text), len(result.speech),
                  result.speech[:60] + ("…" if len(result.speech) > 60 else ""))
