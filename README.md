@@ -42,7 +42,7 @@ ESP32-P4 是它的第一种身体，Live2D / VRM / PNG 帧序列是它现在的�
 |--------|------|------|------|
 | `live2d/render.html` | **Live2D Hiyori**（Cubism 4） | 表现力最强，10 个真实 motion + 5 组表情预设 + 原生眨眼；引擎版本实测锁死 `pixi.js@8.19.0` + `@jannchie/pixi-live2d-display@1.3.0` | 默认 |
 | `live2d/render_png.html` | **大肥鱼 PNG 帧序列** | 零 WebGL 依赖、极轻量，28 组状态动画（idle / 走路 / 摸头 / 吃 / 睡 / 生气 / 拖拽 / 落地 …），3 档精灵尺寸 187 / 238 / 306 | `--mode png` |
-| `live2d/render_vrm.html` | **VRM / GLB**（three.js + `@pixiv/three-vrm`） | 用户可导入自己的模型（仓库自带 `aldina.vrm` / `Lazuli_VRM.vrm` / `Zome.vrm`，均可提取表情与元数据） | `--mode vrm --model models/xxx.vrm` |
+| `live2d/render_vrm.html` | **VRM / GLB**（three.js + `@pixiv/three-vrm`） | 加载用户自己放进 `live2d/models/` 的模型（**仓库不再内置 VRM，原因与获取方式见 [`live2d/models/README.md`](live2d/models/README.md)**） | `--mode vrm --model models/xxx.vrm` |
 
 配套能力：
 
@@ -266,9 +266,14 @@ npm start              # Live2D；npm run start:png / start:vrm 换模型
 .\.venv\Scripts\python.exe pc-host\serial_bridge.py --port COM16 --mode dev    # 真实 Claude Code
 .\.venv\Scripts\python.exe pc-host\serial_bridge.py --port COM16 --mode chat   # 轻量聊天（省 ~90% token）
 
-# C. 三模型任选（live2d / png / vrm）
+# C. 三模型任选（live2d / png / vrm）；vrm 需自己先把 .vrm/.glb 放进 live2d/models/
 .\.venv\Scripts\python.exe pc-host\stream_simple.py --mode vrm --model models/Zome.vrm --port COM16
 ```
+
+> **关于角色模型**：`live2d/models/` 里的第三方 VRM（Zome / aldina / Lazuli，合计约 96 MB，
+> 版权归 Yorshka Shop，原作者要求勿再分发）已移出仓库并加入 `.gitignore`。
+> Live2D（Hiyori）与 PNG（大肥鱼）两条管线自带素材、开箱即用；
+> 需要 VRM 时按 [`live2d/models/README.md`](live2d/models/README.md) 自行放回。
 
 ### 5.7 固件构建与烧录
 

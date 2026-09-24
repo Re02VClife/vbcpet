@@ -22,7 +22,7 @@ Unity 打造的**开源 VRM 桌面虚拟伴侣**（Desktop Mate 替代品）：V
 | Lazuli | `MATE ENGINE - Avatar/DLCs/Lazuli_VRM.vrm` | ✅ VRM 0.x, 58MB | DLC，MToon 材质 |
 | Ayrina（ME_02 DLC） | `MATE ENGINE - DLCs/ME_02/Ayrina/*.prefab` | ❌ 无 .vrm | Unity 烘焙资产（`*.baked.asset` + prefab），只能给 Unity 用 |
 
-> 三个 VRM 已拷入 `live2d/models/`。DLC 目录里每个角色的 `.BlendShapes/*.asset`、`.Materials/*`、`.Meshes/*.baked` 都是 Unity 序列化 YAML（`VRM::VRM.BlendShapeClip`），记录 `BlendShapeName + Preset + Values[RelativePath/Index/Weight]`，是**离线读懂每个角色表情如何绑定到 morph index** 的现成依据。
+> 三个 VRM 曾拷入 `live2d/models/`，**现已移出仓库**（体积大 + 原作者要求勿再分发，见 [`../live2d/models/README.md`](../live2d/models/README.md)），需要时从 MateEngine 发布包自行放回。DLC 目录里每个角色的 `.BlendShapes/*.asset`、`.Materials/*`、`.Meshes/*.baked` 都是 Unity 序列化 YAML（`VRM::VRM.BlendShapeClip`），记录 `BlendShapeName + Preset + Values[RelativePath/Index/Weight]`，是**离线读懂每个角色表情如何绑定到 morph index** 的现成依据。
 
 ## 三、表情/情绪管线（核心参考）
 

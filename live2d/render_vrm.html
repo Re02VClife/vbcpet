@@ -430,7 +430,7 @@ loader.load(
     if (xhr.total) console.log('vrm loading', Math.round(xhr.loaded / xhr.total * 100) + '%');
   },
   (err) => {
-    console.error('VRM load failed:', err && err.message, '(放 .vrm/.glb 到 models/, 或检查路径)');
+    console.error('VRM load failed:', err && err.message, '(仓库不再内置 VRM 模型 — 请把 .vrm/.glb 放进 live2d/models/, 获取方式见 live2d/models/README.md; 或改用 --mode live2d / --mode png)');
     window._ready = true;   // 避免 stream 卡等待
   }
 );
