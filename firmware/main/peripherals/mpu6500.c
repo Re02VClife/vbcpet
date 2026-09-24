@@ -40,7 +40,7 @@ static esp_err_t read_bytes(uint8_t reg, uint8_t *buf, size_t len)
 int mpu6500_init(void)
 {
     ESP_RETURN_ON_ERROR(i2c_bus_init(), TAG, "i2c bus init fail");
-    ESP_RETURN_ON_ERROR(i2c_bus_add_device(MPU6500_I2C_ADDR, 400000, &s_dev), TAG, "i2c add device fail");
+    ESP_RETURN_ON_ERROR(i2c_bus_add_device(MPU6500_I2C_ADDR, I2C_FREQ_HZ, &s_dev), TAG, "i2c add device fail");
 
     uint8_t who = 0;
     ESP_RETURN_ON_ERROR(reg_read(MPU6500_WHO_AM_I, &who), TAG, "who_am_i read fail");

@@ -19,6 +19,9 @@ esp_err_t i2c_bus_add_device(uint16_t addr, uint32_t scl_speed_hz, i2c_master_de
 /** 探测某 7-bit 地址是否存在 (0=存在)。 */
 esp_err_t i2c_bus_probe(uint16_t addr);
 
+/** 扫描全总线 (0x03-0x77), 打印 FOUND/NACK/TIMEOUT 分类。 */
+void i2c_bus_scan(void);
+
 #ifdef __cplusplus
 }
 #endif

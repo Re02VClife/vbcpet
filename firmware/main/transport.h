@@ -23,6 +23,9 @@ typedef struct transport {
 /** 创建 USB Serial JTAG 传输实例 */
 transport_t *transport_usb_create(int rx_buf_size, int tx_buf_size);
 
+/** 创建 UART0 传输实例 (推流复用链路, console 需让位 CONFIG_ESP_CONSOLE_NONE) */
+transport_t *transport_uart_create(int rx_buf_size, int tx_buf_size);
+
 /** 释放传输实例及其资源 */
 void transport_destroy(transport_t *t);
 

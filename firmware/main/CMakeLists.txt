@@ -1,6 +1,7 @@
 set(sources
     "vbcpet_main.c"
     "transport_usb.c"
+    "transport_uart.c"
     "channel_demux.c"
     "display_pipeline.c"
     "protocol.c"
@@ -28,17 +29,29 @@ elseif(CONFIG_DISPLAY_BACKEND_DSI)
         "peripherals/nfc.c"
         "peripherals/usb_host.c"
         "peripherals/self_test.c"
+        "peripherals/wifi_link.c"
+        "peripherals/c6_flash.c"
     )
 else()
     # 默认 SPI (无 Kconfig 时回退)
     list(APPEND sources "display_pipeline_spi.c")
 endif()
 
+# C6 的合并镜像 (bootloader+分区表+ota_data+app, 烧到 0x0) — P4 用它给 C6 编程
+if(CONFIG_VBCPET_C6_FLASH)
+    set(c6_embed "c6_merged.bin")
+    message(STATUS "vbcpet: 嵌入 C6 镜像 c6_merged.bin (P4-as-programmer)")
+else()
+    set(c6_embed "")
+endif()
+
 idf_component_register(
     SRCS ${sources}
+    EMBED_FILES ${c6_embed}
     INCLUDE_DIRS
         "."
     REQUIRES
+        hal
         nvs_flash
         driver
         esp_lcd
@@ -55,6 +68,10 @@ idf_component_register(
         esp_timer
         esp_mm
         esp_lcd_st7102
+        esp_hosted
+        esp_wifi_remote
+        esp-serial-flasher
+        # esp_ldo_regulator 在 IDF 5.5.3 属于 esp_hw_support (components/esp_hw_support/ldo/), 无需单列
 )
 # 保留不编译 (硬件 bring-up 参考):
 #   display_test.c   — 原始 ST7789V bring-up
