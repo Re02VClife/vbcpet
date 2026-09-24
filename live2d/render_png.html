@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>vbcpet Dafeiyu PNG</title>
+<style>
+  body{margin:0;background:#335577;overflow:hidden}
+  body.transparent{background:transparent}
+  body.transparent #osd{display:none!important}
+  #stage{position:relative;width:100vw;height:100vh}
+  #sprite{position:absolute;image-rendering:auto}
+  #osd{position:fixed;top:2px;right:6px;color:#00aaff;font:12px/1.6 monospace;background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:3px;z-index:99;white-space:pre;}
+</style>
+</head>
+<body>
+<div id="stage"><img id="sprite" alt="dafeiyu"></div>
+<div id="osd">png: --</div>
+
+<script>
+/* ============================================================
+ * render_png.html — 大肥鱼 PNG 帧序列「轻量模式」播放器
+ *
+ * 与 render.html (Live2D) 暴露完全相同的窗口 API，供
+ * stream_simple.py / agent_bridge / soullink 事件桥接无缝调用：
+ *   window._ready, playMotion(n), setExpression(n,v),
+ *   applyEmotion(name,dur), sendMessage(text), setMood(v), getMood(),
+ *   getStatus(), getEmotionState(), setMood / _mood
+ *
+ * 资产来源：assets/dafeiyu/inventory.json（大肥鱼 runtime 帧清单）
+ *           + assets/dafeiyu/states/<state>/<state>_<size>[_<idx>].png
+ * 尺寸默认 306（最大档），可用 ?size=187|238|306 覆盖；
+ * 画布默认 480x800（最终板 DSI），可用 ?res=WxH 覆盖。
+ * ============================================================ */
+window._ready = false;
+window._model = null;            // 兼容层：暴露一个"模型"对象，但其含义是帧播放器
+window._motions = [];
+window._expressions = [];
+window._emotions = ['neutral','happy','sad','surprised','angry'];
+window._mood = 60;
+window._moodText = null;
+window._currentEmotion = 'neutral';
+
+/* ── emotion → state 映射（可覆盖） ──
+ * 大肥鱼资产里没有单独的 sad/surprised 单帧状态，用最接近的等价帧。 */
+const EMOTION_TO_STATE = {
+  neutral:   'idle_front',
+  happy:     'happy',
+  sad:       'idle_think',       // 低头思考，接近难过/沮丧
+  surprised: 'poke_react',       // 戳反应，吃惊感
+  angry:     'angry'
+};
+
+/* ── 帧清单加载器 ── */
+var _INV = null;                 // inventory.assets
+var _SIZE = 306;                 // 精灵尺寸档
+var _images = {};                // url -> HTMLImageElement (预加载缓存)
+var _stateDef = {};              // state -> {frames:[url...], fps, loop}
+
+function _query() { return new URLSearchParams(location.search); }
+if (_query().get('transparent') === '1') {
+  document.body.classList.add('transparent');
+}
+
+function _loadInventory() {
+  return fetch('./assets/dafeiyu/inventory.json')
+    .then(function(r){ if(!r.ok) throw new Error('inventory '+r.status); return r.json(); })
+    .then(function(data){
+      _INV = data.assets || data;
+      var keys = Object.keys(_INV);
+      window._motions = keys.slice();
+      return _INV;
+    });
+}
+
+/* 取某 state 在指定 size 下的帧路径数组（含单帧与多帧）。
+ * inventory 结构: assets.<state>.frames.<size> = [path1, path2, ...] */
+function _framesForState(state, size) {
+  var a = _INV[state];
+  if (!a || !a.frames) return null;
+  var bySize = a.frames[String(size)];
+  if (!bySize || !bySize.length) {
+    // 回退：找任意存在的尺寸
+    for (var s in a.frames) { if (a.frames[s] && a.frames[s].length) return a.frames[s]; }
+    return null;
+  }
+  return bySize;
+}
+
+/* 预加载某 state 的帧（按需），返回 url 数组。 */
+function _ensureState(state) {
+  if (_stateDef[state]) return _stateDef[state];
+  var paths = _framesForState(state, _SIZE) || _framesForState(state);
+  if (!paths || !paths.length) return null;
+  var urls = paths.map(function(p){
+    // inventory 里是 'assets/processed/...' (相对大肥鱼项目根)，
+    // 实际已把 processed/ 复制到 assets/dafeiyu/ 下，故剥离开头的 'assets/' 前缀。
+    var rel = p.replace(/^assets\//, '');
+    return './assets/dafeiyu/' + rel;
+  });
+  urls.forEach(function(u){
+    if (!_images[u]) {
+      var img = new Image();
+      img.src = u;
+      img.onerror = function(){ console.warn('frame load fail:', u); };
+      _images[u] = img;
+    }
+  });
+  // 帧率：多帧动作 ~ 8fps，单帧静态
+  var fps = urls.length > 1 ? 8 : 0;
+  _stateDef[state] = { frames: urls, fps: fps, idx: 0 };
+  return _stateDef[state];
+}
+
+/* ── 播放引擎 ── */
+var _cur = { state: null, def: null, idx: 0, last: 0, loop: true };
+var _motionOverride = null;      // 一次性覆盖动画（playMotion 用）
+
+function _playState(state, opts) {
+  var def = _ensureState(state);
+  if (!def) return false;
+  _cur.state = state;
+  _cur.def = def;
+  _cur.idx = 0;
+  _cur.last = performance.now();
+  _cur.loop = (opts && opts.loop === false) ? false : true;
+  _render();
+  return true;
+}
+
+function _render() {
+  var img = document.getElementById('sprite');
+  if (!_cur.def) return;
+  var url = _cur.def.frames[_cur.idx];
+  var el = _images[url];
+  if (el && el.complete && el.naturalWidth) {
+    img.src = url;
+    // 居中、底部对齐（贴近原始桌宠"站地板"语义）
+    img.style.width = el.naturalWidth + 'px';
+    img.style.height = el.naturalHeight + 'px';
+    img.style.left = ((window.innerWidth - el.naturalWidth)/2) + 'px';
+    img.style.top = (window.innerHeight - el.naturalHeight - 12) + 'px';
+  } else if (el) {
+    el.onload = _render; // 加载完成后重画
+  }
+}
+
+function _tick(now) {
+  if (!_cur.def) return;
+  var def = _cur.def;
+  if (def.fps > 0 && now - _cur.last >= 1000/def.fps) {
+    _cur.last = now;
+    if (_cur.loop || _cur.idx < def.frames.length - 1) {
+      _cur.idx = (_cur.idx + 1) % def.frames.length;
+    }
+    _render();
+  }
+}
+
+function _loop(now) { _tick(now); requestAnimationFrame(_loop); }
+
+/* ── 兼容 window API ── */
+
+/* 通用播放动作：n 为 state 名或情绪名 */
+window.playMotion = function(n) {
+  var s = n;
+  if (!_INV[s] && EMOTION_TO_STATE[s]) s = EMOTION_TO_STATE[s];
+  if (_ensureState(s)) {
+    // 多帧动作一次性播放后回落 idle
+    _playState(s, { loop: (_ensureState(s).frames.length === 1) });
+    console.log('motion:', n, '->', s);
+    return true;
+  }
+  console.log('motion stub:', n);
+  return false;
+};
+
+/* 无参数语义的兼容占位：PNG 模式没有单参数模型，但记录到日志 */
+window.setExpression = function(n, v) {
+  console.log('param:', n, '=', v, '(png mode: ignored)');
+  return true;
+};
+
+/* 情绪切换：映射到对应 state */
+window.applyEmotion = function(name, duration) {
+  duration = duration || 800;
+  var s = EMOTION_TO_STATE[name];
+  if (!s && _INV[name]) s = name;       // 允许直接传 state 名
+  if (!s) { console.warn('Unknown emotion:', name); return false; }
+  window._currentEmotion = name;
+  _playState(s);
+  console.log('emotion:', name, '(png state', s + ',', duration + 'ms)');
+  if (window._osd) window._osd('png', name);
+  return true;
+};
+
+/* 消息情绪分类：复用 render.html 的本地规则思路 ——
+ * 在没有 soullink classifier 时做最简关键词分类。 */
+function _classifyLocal(text) {
+  var t = String(text);
+  if (/喜欢|爱|开心|棒|好|谢谢|哈哈|可爱/.test(t)) return 'happy';
+  if (/气|烦|讨厌|滚|差|骂|烂/.test(t)) return 'angry';
+  if (/难过|伤心|哭|悲伤|失望|累|困/.test(t)) return 'sad';
+  if (/啊|哇|天|竟然|什么|惊/.test(t)) return 'surprised';
+  return 'neutral';
+}
+
+window.sendMessage = function(text) {
+  var emo = _classifyLocal(text);
+  window.applyEmotion(emo, 600);
+  console.log('message classified:', emo, JSON.stringify(text));
+  return { emotion: emo, variant: null, intensity: 0.7, sourceMessage: String(text) };
+};
+
+window.getStatus = function() {
+  return {
+    ready: window._ready,
+    motions: window._motions,
+    expressions: window._expressions,
+    emotions: window._emotions,
+    currentEmotion: window._currentEmotion,
+    mood: window._mood,
+    soullink: false,                 // PNG 模式不加载 soullink engine
+    renderer: 'png'
+  };
+};
+
+window.setMood = function(v) {
+  v = Math.max(0, Math.min(100, v));
+  window._mood = v;
+  if (window._moodText) window._moodText.text = 'Mood:' + v;
+  var emotion = 'neutral';
+  if (v >= 80) emotion = 'surprised';
+  else if (v >= 65) emotion = 'happy';
+  else if (v <= 25) emotion = 'angry';
+  else if (v <= 45) emotion = 'sad';
+  window.applyEmotion(emotion, 300 + Math.abs(v - 60) * 8);
+  return v;
+};
+
+window.getMood = function() { return window._mood; };
+
+/* PNG 模式无 VAD/FACS，返回占位快照保持接口一致 */
+window.getEmotionState = function() {
+  return { emotion: window._currentEmotion, variant: null, vad: null,
+           facs: null, state: 'png', gain: 1, bodyGain: 1 };
+};
+
+/* OSD 更新 */
+window._osd = function(mode, name) {
+  var el = document.getElementById('osd');
+  if (el) { el.textContent = mode + ': ' + name + '  mood:' + window._mood; }
+};
+
+/* ── 启动 ── */
+(function boot() {
+  var q = _query();
+  var size = parseInt(q.get('size') || '306', 10);
+  if ([187,238,306].indexOf(size) >= 0) _SIZE = size;
+
+  _loadInventory().then(function() {
+    // 帧列表里挑选默认 idle：优先 idle_front 单帧，其次 idle_blink（有眨眼微动）
+    var idle = _framesForState('idle_front', _SIZE) ? 'idle_front' : 'idle_blink';
+    if (!_framesForState(idle, _SIZE)) idle = Object.keys(_INV)[0];
+    _playState(idle);
+    window._model = { mode: 'png', play: window.playMotion };  // 兼容层
+    window._ready = true;
+    console.log('render_png ready. states:', Object.keys(_INV).length,
+                'size:', _SIZE, 'idle:', idle);
+    requestAnimationFrame(_loop);
+  }).catch(function(e) {
+    console.error('render_png inventory load failed:', e.message);
+    window._ready = true;   // 仍标记 ready 以避免 stream 卡等待
+  });
+})();
+</script>
+</body>
+</html>

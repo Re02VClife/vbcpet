@@ -1,0 +1,15 @@
+{
+  "name": "vbcpet-desktop-pet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "vbcpet 桌面桌宠 (Electron 透明窗口宿主) — 复用 live2d/render.html 或 render_png.html",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:png": "electron . -- --mode png",
+    "start:vrm": "electron . -- --mode vrm"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}

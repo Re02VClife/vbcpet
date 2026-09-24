@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>vbcpet Live2D</title>
-<style>body{margin:0;background:#111;overflow:hidden}canvas{display:block;background:#335577}</style>
+<style>body{margin:0;background:#111;overflow:hidden}canvas{display:block;background:#335577}
+body.transparent{background:transparent}body.transparent canvas{background:transparent}
+body.transparent #osd{display:none!important}</style>
 </head>
 <body>
 <div id="osd" style="position:fixed;top:2px;right:6px;color:#00aaff;font:12px/1.6 monospace;background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:3px;z-index:99;white-space:pre;">soullink: --</div>
@@ -318,6 +320,12 @@ let W=480, H=800;
 if (_res) { const p=_res.toLowerCase().split('x').map(Number); if (p.length===2 && p[0]>0 && p[1]>0){W=p[0];H=p[1];} }
 console.log('canvas res', W+'x'+H);
 
+// 透明桌面模式: ?transparent=1 → 透明 body/canvas, 隐藏 OSD, 只显示角色
+if (_q.get('transparent') === '1') {
+  document.body.classList.add('transparent');
+  console.log('transparent desktop mode enabled');
+}
+
 // 模型配置: 默认 Hiyori; 自制模型用
 //   ?model=MyModel/MyModel.model3.json&scale=0.16&x=0&y=0
 // (scale 相对 240 宽基准, 最终板 480 会自动 ×2; x/y 是相对默认位置的偏移 px)
@@ -326,8 +334,12 @@ const MODEL_SCALE = parseFloat(_q.get('scale') || '0.16');
 const MODEL_DX    = parseFloat(_q.get('x') || '0');
 const MODEL_DY    = parseFloat(_q.get('y') || '0');
 app = new PIXI.Application();
-await app.init({width:W, height:H, background:0x335577,
-    resolution:1, antialias:true, preference:'webgl'});
+const _transparent = _q.get('transparent') === '1';
+const _initOpts = {width:W, height:H,
+    backgroundAlpha: _transparent ? 0 : 1,
+    resolution:1, antialias:true, preference:'webgl'};
+if (!_transparent) _initOpts.background = 0x335577;
+await app.init(_initOpts);
 document.body.appendChild(app.canvas);
 console.log('2. canvas', app.canvas.width, 'x', app.canvas.height, 'screen', app.screen.width, 'x', app.screen.height);
 
@@ -342,14 +354,16 @@ try {
 
     app.stage.addChild(model);
 
-    // FPS 计数器 (左上角)
-    const fpsText = new PIXI.Text({text:"FPS: --", style:{fontSize:14, fill:0x00FF00, fontFamily:"monospace"}});
-    fpsText.x = 4; fpsText.y = 4;
-    app.stage.addChild(fpsText);
-    // 心情值 (右上角)
-    const moodText = new PIXI.Text({text:'Mood:60', style:{fontSize:14, fill:0xFFAA00, fontFamily:'monospace', align:'right'}});
-    moodText.x = W - 80; moodText.y = 4;
-    app.stage.addChild(moodText);
+    // FPS 计数器 (左上角) + 心情值 (右上角) —— 仅非透明模式显示调试信息
+    let fpsText = null, moodText = null;
+    if (!_transparent) {
+      fpsText = new PIXI.Text({text:"FPS: --", style:{fontSize:14, fill:0x00FF00, fontFamily:"monospace"}});
+      fpsText.x = 4; fpsText.y = 4;
+      app.stage.addChild(fpsText);
+      moodText = new PIXI.Text({text:'Mood:60', style:{fontSize:14, fill:0xFFAA00, fontFamily:'monospace', align:'right'}});
+      moodText.x = W - 80; moodText.y = 4;
+      app.stage.addChild(moodText);
+    }
     window._moodText = moodText;
     window._frameTimes = [];
     window._lastTime = performance.now();
@@ -359,7 +373,7 @@ try {
         window._lastTime = now;
         window._frameTimes.push(dt);
         if (window._frameTimes.length > 60) window._frameTimes.shift();
-        if (window._frameTimes.length > 0) {
+        if (fpsText && window._frameTimes.length > 0) {
             const avg = window._frameTimes.reduce((a,b)=>a+b,0) / window._frameTimes.length;
             fpsText.text = "FPS:" + (1000/avg).toFixed(1);
         }

@@ -52,6 +52,7 @@ from agent_driver import DriverCallbacks, Usage, PermissionRequest  # noqa: E402
 from agent_bridge import _session_path, inject_to_inputbox, poll_replies, shorten  # noqa: E402
 from chat_driver import ChatDriver  # noqa: E402
 from claude_sdk_driver import ClaudeSdkDriver  # noqa: E402
+from emotion_relay import relay  # noqa: E402  (情绪事件中继 → 双显 hub)
 
 
 # ── HTTP 服务 (Live2D 静态文件) ──
@@ -223,6 +224,7 @@ class UnifiedBridge:
             replies += 1
             short = shorten(item)
             self._send_ctrl({"t": "say", "text": short})
+            relay.emit_message(item)   # 双显联动: 注入得到的 agent 回复 → 情绪广播
             print(f"  [Agent→硬件] {short}")
         print(f"[inject] 结束, 收到 {replies} 条回复")
 
@@ -242,11 +244,22 @@ class UnifiedBridge:
                 asyncio.ensure_future(
                     self._page.evaluate(f'() => window.sendMessage("{tail}")')
                 )
+        # ── 双显联动: 把「对话 → 情绪」事件转发给桌面窗口 + P4 (via hub) ──
+        relay.emit_message(text)
 
     def on_status(self, state: str, detail: str) -> None:
         print(f"[status] {state}: {detail}")
         # 不发送 work_status 到 P4 (减少 CTRL 消息频率)
         asyncio.ensure_future(self._apply_l2d_status(state))
+        # ── 双显联动: Claude 状态 → 情绪广播 (mood 偏移由 _apply_l2d_status 同步到
+        #   本进程的 Live2D; 这里把同源情绪广播给桌面窗口/P4 双显) ──
+        state_emotions = {
+            "thinking": "neutral", "running": "neutral", "editing": "happy",
+            "done": "happy", "error": "sad", "blocked": "surprised",
+        }
+        relay.emit_emotion(state_emotions.get(state, "neutral"))
+        if state == "done":
+            relay.emit_motion("celebrate")
 
     def on_panel(self, usage: Usage) -> None:
         print(f"[panel] {usage.total} tokens, ${usage.cost_usd:.4f}")
