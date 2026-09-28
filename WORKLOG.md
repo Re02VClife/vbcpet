@@ -1,11 +1,133 @@
 # vbcpet 工作日志
 
+> 📌 **接手 bring-up 请先读 [`hardware/bringup-v1-status.md`](hardware/bringup-v1-status.md)** —— 自包含的现状交接：环境/命令 · 已结案 4 项 · 未结案 5 项 · 摄像头验证阶梯 · 8 个已知坑。
+
+## 2026-09-25 (星期四) — 📐 手册定性 pin66: 它是 LDO_VO4 的**输出**, 修正 09-24 的「V2 直连 3V3」结论
+
+### 结论先行 (推翻 09-24 的一半)
+
+手册 pin66 原文: `Output power supply (output voltage range 0.5–2.7V or 3.3V, maximum output current 0.2A)`
+
+**它是电源输出脚** —— 即 P4 内部 LDO_VO4 的输出。三条独立证据:
+
+1. 手册 pin66 = `ESP_LDO_VO4`, 明写 "Output power supply"
+2. IDF `components/sdmmc/include/sd_pwr_ctrl_by_on_chip_ldo.h` 原文:
+   *"On-chip LDO channel ID, e.g. set to `4` is the `LDO_VO4` is connected to power the SDMMC IO"*
+3. 实测 pin66 与 GPIO48 **始终同步变化**, 且整组推挽高电平恒等于 pin66 电压
+
+⇒ **GPIO39~48 这组 pad 的 IO 供电轨本来就由 LDO_VO4 提供 —— 这是标准设计, 不是本板缺陷。**
+V1 上 SD / PA_EN / MPU_INT / BL_PWM 全瘫的根因是**固件从未配置该 LDO**, 复位后停在默认 ~1.2V。
+
+### 因此修正 09-24 的两条
+
+| 09-24 的写法 | 09-25 修正 |
+|---|---|
+| "该轨**不由** LDO_VO4 驱动" | ❌ 错。它**就是** LDO_VO4; 只是软件路径没作用到这个节点 |
+| "**V2 板上 pin66 直接接 3.3V**" | ⚠️ 降级为**兜底**。那是**反灌一个输出脚** —— 现在没出事只因 LDO 未被使能(输出高阻); 而 IDF 现成就有 `sd_pwr_ctrl_new_on_chip_ldo()`, 任何一行代码 acquire 通道 4 就会与外部 3.3V 对顶 |
+
+### ✅ 当晚实测: 矛盾解除 —— LDO_VO4 完全可控
+
+拆掉 pin66 上的外部连线后, 在 V1 上实发三条命令, 万用表同时量两个脚:
+
+| 命令 | pin66 | pin76 (GPIO48) | 回显 |
+|---|---|---|---|
+| `ldo 4 1800` | **1.8 V** | **1.8 V** | `-> 1800 mV: OK` |
+| `ldo 4 2700` | **2.7 V** | **2.7 V** | `-> 2700 mV: OK` |
+| `ldo 4 3300` | **3.3 V** | **3.3 V** | `-> 3300 mV: OK` |
+
+⇒ **通道号 4 正确, 这条轨完全由软件支配。**
+
+### 09-24"软件改不动"是假象
+
+当天 `tools/serial_console.py` 的首字符丢失 bug 会把 `ldo 4 3300` 吃成 `?ldo` ⇒ 未知命令,
+**命令根本没到板子**。该 bug 同一天发现并修掉 (连接后先发换行热身) —— 修的时候并不知道
+它已经污染了 LDO 那轮结论。教训: 串口工具的静默失败会伪装成"硬件不响应"。
+
+### V2 定稿
+
+1. **pin66 = NC**, 不接任何电源 (可选留一个测试点; **不要**留到 3V3 的电阻位 —— 那是反灌口)
+2. **固件配置**: `esp_ldo_acquire_channel({.chan_id=4, .voltage_mv=3300, .flags.adjustable=true})`,
+   位置在 `app_main` **最早期**。✅ 已落地: `vbcpet_main.c: ldo_vo4_init()` +
+   `Kconfig.projbuild: CONFIG_VBCPET_LDO_VO4_MV` (默认 3300)
+3. ⚠️ `adjustable` 通道不能 acquire 两次 ⇒ SD 驱动别再碰通道 4
+
+### 启动顺序上的坑 (实测踩到)
+
+上电自检跑在**任何 LDO 配置之前** ⇒ 只要 `ldo_vo4_init()` 还没进固件, 开机日志里 SD 必然
+`sdmmc_card_init failed (0x105)`。这就是"手动拉压后功能好了、一重启又全废"的原因。
+
+### 功能验证 (2026-09-25, LDO_VO4 = 3300mV, 外部连线已拆)
+
+| 功能 | 结果 | 说明 |
+|---|---|---|
+| `audio` | ✅ **PASS** (`PA ON` → 440Hz×3 → PA off) | PA_EN = GPIO46, 改前 1.23V |
+| DSI 显示 | ✅ `MIPI DSI backend ready` / `Boot screen displayed` | LDO_VO3 2500mV 供 DSI PHY, 与 VO4 无冲突 |
+| `test sd` (卡插回后) | ✅ **卡挂载成功** | 根目录列出 `ZIMAGE / ROOTFS~1.GZ / BOOT.SCR / MYD-Y6~1.DTB / MFG-IM~1 / SYSTEM~1` ⇒ **SD 功能恢复**。自检判 FAIL 只因这张卡是米尔 i.MX6 的系统盘 (`open write FAIL`, 只读), 与硬件无关 |
+| `ldo 4` (不带 mv) | ✅ **`已 acquire`** | 烧入启动配置版后回显, 证明显 `app_main` 的 `ldo_vo4_init()` 已生效 (旧固件此处回 `未 acquire`) |
+| `test imu` | ❌ `WHO_AM_I=0x00` | 与 I2C 总线故障同源 |
+| `scan` | ❌ 0x03~0x77 全 FOUND 且 `reg0=0x00` | 固件用**直读法**扫的, 不受 async 驱动限制 ⇒ 现象为真: **SDA 被恒久拉低**, 硬件嫌疑 |
+
+### ✅ I2C 大案结案 (2026-09-25 晚): 根因是 `trans_queue_depth = 8`
+
+`firmware/main/peripherals/i2c_bus.c` 里写的 `.trans_queue_depth = 8`。IDF `esp_driver_i2c/i2c_master.c:1119`:
+
+```c
+// Initialize the queue
+if (bus_config->trans_queue_depth) {          // ← 只要非 0 就进这里
+    ESP_LOGW(TAG, "Please note i2c asynchronous is only used ... user cannot get bus error from API.
+                   ... And It's not compatible with ``i2c_master_probe``. ...");
+    i2c_master->async_trans = true;
+```
+
+一个非 0 值把整条总线切进 **async 模式**, 而 async 下**驱动不上报任何总线错误**。三条后果:
+
+1. `i2c_bus_scan` **所有地址都"成功"** ⇒ 全 FOUND (假象)
+2. `i2c_master_probe` **全部 timeout** (IDF 明写不兼容)
+3. 读寄存器**恒得初值** ⇒ `WHO_AM_I = 0x00` (而 `reg_read` 用 `ESP_RETURN_ON_ERROR` 竟然也不报错)
+
+再叠上 `i2c_bus.c:71` 的打印 bug —— `0x%02X` 的参数是**硬编码常量 `0`**, 真实 `val` 被丢弃 ——
+"`reg0=0x00` ⇒ 总线恒低"这个推理从头就建立在假数据上。两个假象互相印证, 看起来像真的。
+
+**修复**: `trans_queue_depth = 0` (同步模式) + 修掉 `reg0` 打印。**一个焊点都没动。**
+
+**修复前后实测 (同一块板, 同一批器件)**:
+
+| 项 | 修复前 | 修复后 |
+|---|---|---|
+| `scan` | 0x03~0x77 **117 个全 FOUND** | `FOUND=2 NACK=115 TIMEOUT=0` |
+| 找到的设备 | (全是假的) | `0x28` (reg0=**0xFC**) + `0x55` (NFC ✅) |
+| `test touch` | 未探测到 | ✅ **PASS** |
+| `test imu` | `WHO_AM_I = 0x00` (假) | `WHO_AM_I read FAIL` (真) |
+| 用户实测 SDA/SCL 上电电压 | — | 两条都 **3.3V** ✅ (与"总线正常"吻合) |
+
+⇒ **I2C 总线一直是好的**, 之前"三个 I2C 器件全坏"是同一个配置值造成的假象。
+⇒ 顺带查清: **触摸真实地址是 `0x28`**, 而 `board_config.h:34` 写的是 `0x24`
+   (那行注释本来就标着"⚠️ 待 bring-up 探测确认") —— **要改**。
+⇒ **唯一真实的硬件故障只剩 MPU-6500** (`0x68` 不在 scan 结果里, `WHO_AM_I read FAIL`)。
+   "疑焊接"的猜测只对他成立, 而且直到现在才第一次有真实证据。
+
+### 顺带核对 09-15 网表 (V2 候选) —— 结论: 还不能布线
+
+- ✅ **已落地**: USB-C 接 USJ(GPIO24/25) + CC 5.1k、舵机挪 GPIO28/29、`F2=1A PPTC` 在主 3V3 路径、
+  `D3/D4` 电源 TVS、`R9/R18` I2C 上拉、`pin2` 天线脚 NC
+- 🔴 **执行计划 8 项一项都没落网表**: `pin76→3V3` 未摘 / `pin66` 未接 / `D5` 未加 / `R19` 未加 /
+  `R20` 未加 / C6 三线未连 / `$1N152` 未删 / `D6` 未加
+- ⚠️ **执行计划本身两处错**: A3 的 I2C 上拉位号应为 `R9/R18` (非 R8/R9);
+  A5-6 的 GPIO36 应为 **10k 下拉到 GND** (非上拉, 否则 `SW6` 永久失效)
+- 原理图与 PCB 网表**逐网络比对完全一致** ⇒ 改完原理图要重新同步 PCB
+- 详见新增的 `hardware/v2-netlist-checklist.md`
+
+### 新增/更新文档
+
+- `hardware/v2-netlist-checklist.md` (新) — V2 网表逐项改动清单: 已落地 10 项 / 待改 8 项 / 分支未决 3 项
+- `hardware/v2-execution-plan.md` — A1/A2/A3/A5/A6 按网表现状 + 手册定性重写
+
 ## 2026-09-24 (星期三) — 🔬 V1 板 IO 供电大案: GPIO39~48 被压在 1.23V, pin66 是电源节点
 
 ### 结论先行
 **模组 P4 的 GPIO39~48 这一组 pad, IO 供电不是 3.3V, 而是 ~1.23V。**
 把 **pin66** (手册标 `ESP_LDO_VO4`) 外部直连 +3V3, 整组即恢复 3.3V。
-⇒ **V2 板上 pin66 直接接 3.3V** (不串大电阻), 其余引脚全部沿用原分配, 不必搬脚。
+⇒ ~~**V2 板上 pin66 直接接 3.3V** (不串大电阻)~~ ⚠️ **此条已于 2026-09-25 修正为"兜底方案"**, 见上方 09-25 条目。其余引脚全部沿用原分配, 不必搬脚 (这条不变)。
 
 ### 证据链 (缺一不可)
 1. **逐脚电平扫描** (推挽输出、无负载, 见 `tools/gp_sweep.py`):
@@ -18,7 +140,8 @@
    同板对照: GPIO30/31/32/34/49/50 = 3.24V, GPIO37(UART0_TXD) = 3.3V ⇒ **只有这一组低**
 2. **软件调压无效**: `ldo 4 800 / 2000 / 3300` 全部返回 OK, pin66 恒 1.24V。
    IDF `esp_ldo_regulator.c` 路径逐行核对无 bug (unit 映射 / dref-mul / owner=SW 都对)
-   ⇒ 该轨**不由 LDO_VO4 驱动**; IDF 注释 "LDO_VO4 is connected to power the SDMMC IO" 只是 P4 的一种可行接法。
+   ⇒ ~~该轨不由 LDO_VO4 驱动~~ ← ⚠️ **2026-09-25 推翻**: 它**就是** LDO_VO4 (手册 pin66 明写 "Output power supply"),
+     只是软件路径没作用到这个节点。原因待查, 见 09-25 条目的三步实验。
 3. **pin66 就是这组 IO 的电源节点** (电压随源阻抗变化):
    | 外部从 3V3 串入 | pin66 / GPIO48 实测 |
    |---|---|

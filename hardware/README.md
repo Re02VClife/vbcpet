@@ -2,8 +2,12 @@
 
 本目录是 **Milestone 1** 主体：从选型、原理图、PCB 到打样 bring-up。
 
-> **当前状态 (2026-08-17)**: ✅ 板到货 + 元件焊接完成, **bring-up 进行中**。供电全通 (5V/3.3V/2.8V/1.5V)、模组 boot + 固件运行确认; 卡点在 **显示 (DSI 初始化忙等)** 与 **USB-C 不枚举** (D+ 物理不通)。详见 [WORKLOG](../WORKLOG.md) 08-17。
-> ⚠️ 待核实: 打样网表里 **D1 pin5=VBUS_IN** 与 **USB_DP/DM 7.3/10mil** 两项疑点（见下方说明）。
+> **当前状态 (2026-09-25)**: 🔬 V1 板 bring-up 深水区。**已结案 4 项**:
+> LDO_VO4（GPIO39~48 那组 IO 的供电，已修进固件）· I2C 总线（async 配置假象，**一个焊点没动**）· SD 卡挂载 · 电源保护。
+> **未结案 5 项**: LED 不亮 · MPU-6500 不应答 · 4-bit SD · C6 烧录通道 · `0x28` 未知器件。
+>
+> 👉 **接手请先读 [`bringup-v1-status.md`](bringup-v1-status.md)** —— 自包含的现状交接（环境/命令/已结案/未结案/坑/文件索引）。
+> 下一步: **摄像头 (OV5640 / CN1) 验证**。
 
 ## 工作流
 
@@ -16,6 +20,11 @@ Phase 0 现成开发板去风险  →  选型定稿  →  原理图(EasyEDA Pro)
 
 | 路径 | 内容 |
 |---|---|
+| [`bringup-v1-status.md`](bringup-v1-status.md) | ⭐ **当前 bring-up 现状交接**（自包含：环境/命令/已结案/未结案/摄像头/已知坑） |
+| [`bringup-v1-measure.md`](bringup-v1-measure.md) · [`bringup-v1-ldo.md`](bringup-v1-ldo.md) | V1 逐脚电平扫描 / LDO 调压原始实测记录 |
+| [`p4c6-manual-crosscheck.md`](p4c6-manual-crosscheck.md) | 模组手册 ↔ 网表逐脚对照；§6 是"要问鱼鹰的问题" |
+| [`v2-execution-plan.md`](v2-execution-plan.md) | **V2 改板执行方案**（A1~A6） |
+| [`v2-netlist-checklist.md`](v2-netlist-checklist.md) | V2 网表逐项改动清单（已落地 10 / 待改 8 / 分支未决） |
 | [`phase0-report.md`](phase0-report.md) | **Phase 0 完成**：开发板验证报告（延迟/带宽/内存量化，2026-07 已做） |
 | [`bom.md`](bom.md) | 完整物料清单与选型理由 |
 | [`bom-lcsc.md`](bom-lcsc.md) | **嘉立创 EDA 导出料单**（48 项 / 81 颗，含 LCSC 编号）；原件 [`BOM_桌面开发助手.xlsx`](BOM_桌面开发助手.xlsx)，下单以 xlsx 为准 |
@@ -35,5 +44,5 @@ Phase 0 现成开发板去风险  →  选型定稿  →  原理图(EasyEDA Pro)
 - Phase 0 已完成，用量化数据锁定了分辨率/码率/内存（见 [`phase0-report.md`](phase0-report.md)）。
 
 ## ⚠️ 打样疑点（bring-up 时重点验证）
-1. **D1 (USBLC6) pin5 = VBUS_IN**：电池模式下 VBUS_IN=0V，会把 USB-A 外设口 D+/D- 钳到 ~0.7V → **电池模式 USB-A 口可能瘫痪**。设计上应接 `+5V`（见 [`expansion.md`](expansion.md) 七节）。若打样件与网表一致，此点在 bring-up 时验证并计划下版修正。
+1. ~~**D1 (USBLC6) pin5 = VBUS_IN**~~ ✅ **2026-09-25 网表核实：实际接的是 `+5V`，此疑点不成立**（[`v2-execution-plan.md`](v2-execution-plan.md) A5-3 已勾掉）。
 2. **USB_DP/DM（USB-C 调试口 HS）线宽 7.3/10mil**：应为 **9.5mil (90Ω)**，当前不满足（7.3 是 MIPI 的 100Ω 宽度）。HS 480Mbps 阻抗不匹配，下版改宽。
