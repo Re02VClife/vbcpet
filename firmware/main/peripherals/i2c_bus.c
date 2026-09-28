@@ -17,7 +17,15 @@ esp_err_t i2c_bus_init(void)
         .scl_io_num    = PIN_I2C_SCL,
         .clk_source    = I2C_CLK_SRC_DEFAULT,
         .glitch_ignore_cnt = 7,
-        .trans_queue_depth = 8,
+        /* ⚠️ 必须为 0 = 同步模式。只要非 0, IDF 就打开 async_trans 并打印
+         * "i2c asynchronous is only used for specific scenario ... user cannot get bus error
+         *  from API ... not compatible with i2c_master_probe" (i2c_master.c:1119)。
+         * async 下 NACK / 超时 / 器件不存在 一律"成功"返回 ⇒ 后果:
+         *   - i2c_bus_scan 全部地址 FOUND (假象)
+         *   - i2c_master_probe 一律 timeout (不兼容)
+         *   - 读寄存器恒得初值 (WHO_AM_I 读成 0x00)
+         * 2026-09-25 定案: 这三条"故障"全是这一个配置造成的, 不是硬件问题。 */
+        .trans_queue_depth = 0,
         .flags = { .enable_internal_pullup = true },
     };
     esp_err_t ret = i2c_new_master_bus(&cfg, &s_bus);
@@ -59,16 +67,18 @@ void i2c_bus_scan(void)
     ESP_LOGI(TAG, "I2C direct-scan 0x03-0x77 (SDA=%d SCL=%d, 400k) [reg0 read]...", PIN_I2C_SDA, PIN_I2C_SCL);
     for (uint16_t a = 0x03; a <= 0x77; a++) {
         i2c_master_dev_handle_t dev = NULL;
+        uint8_t reg = 0x00, val = 0;   /* val 提到循环体作用域: 下面要打印真实值 */
         esp_err_t r = i2c_master_bus_add_device(s_bus,
                         &(i2c_device_config_t){ .dev_addr_length = I2C_ADDR_BIT_LEN_7,
                                                 .device_address = a, .scl_speed_hz = I2C_FREQ_HZ },
                         &dev);
         if (r == ESP_OK) {
-            uint8_t reg = 0x00, val = 0;
             r = i2c_master_transmit_receive(dev, &reg, 1, &val, 1, 30);
             i2c_master_bus_rm_device(dev);
         }
-        if (r == ESP_OK)          { ESP_LOGI(TAG, "  0x%02X FOUND (reg0=0x%02X)", a, 0); found++; }
+        /* 2026-09-25 修 bug: 原来这里打印的是硬编码常量 0, 把真实 val 丢掉了,
+         * 导致"scan 全 FOUND 且 reg0=0x00"被误读成"总线恒低"。 */
+        if (r == ESP_OK)          { ESP_LOGI(TAG, "  0x%02X FOUND (reg0=0x%02X)", a, val); found++; }
         else if (r == ESP_ERR_TIMEOUT) to++;
         else nack++;
     }

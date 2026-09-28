@@ -6,6 +6,8 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "esp_ldo_regulator.h"
+#include "power_rail.h"
 
 #include "transport.h"
 #include "channel_demux.h"
@@ -71,12 +73,58 @@ static void minimal_usj_test(void)
 }
 #endif /* CONFIG_VBCPET_MINIMAL_USJ */
 
+/* ── 内部 LDO_VO4 → GPIO39~48 组 IO 供电轨 (2026-09-25 实测定案) ──────────────
+ *
+ * 手册 pin66 = `ESP_LDO_VO4`, 原文 "Output power supply (0.5-2.7V or 3.3V, max 0.2A)";
+ * IDF `sd_pwr_ctrl_by_on_chip_ldo.h` 注释:
+ *   "On-chip LDO channel ID, e.g. set to `4` is the `LDO_VO4` is connected to power the SDMMC IO"
+ *
+ * 实测 (tools/gp_sweep.py, 2026-09-24/25): GPIO39~48 这组 pad 的 IO 供电轨就是它,
+ * 复位后停在 ~1.2V 的默认档。不配置的后果是一整组外设全瘫:
+ *   SD 卡 sdmmc_card_init failed / PA_EN(GPIO46) 拉不起 / MPU_INT(GPIO47) 收不到 /
+ *   BL_PWM(GPIO48) 驱不动 MT3608 EN。
+ *
+ * 2026-09-25 实测三档 (拆掉 pin66 上的外部连线后): ldo 4 1800 / 2700 / 3300
+ *   ⇒ pin66 与 GPIO48 同步跟随 1.8 / 2.7 / 3.3V ⇒ 通道号 4 正确, 软件完全可控。
+ * 注意 3300 走的是 "rail bypass" (直通输入轨, IDF `LDO_LL_RAIL_VOLTAGE_MV`),
+ * 1800/2700 才是片内 LDO 调压档 —— 两档都能用。
+ *
+ * ⚠️ IDF 明确约束: if the LDO channel is adjustable, you cannot acquire it multiple times。
+ * 所以这一条轨在这里统一 acquire 一次, 其它任何地方都不要再去 acquire 通道 4。
+ */
+/* 全局: 控制台 `ldo 4 <mv>` (bringup.c) 要复用它调压 —— adjustable 通道不能 acquire 两次 */
+esp_ldo_channel_handle_t g_ldo_vo4 = NULL;
+
+static void ldo_vo4_init(void)
+{
+#if CONFIG_VBCPET_LDO_VO4_MV > 0
+    esp_ldo_channel_config_t cfg = {
+        .chan_id          = 4,
+        .voltage_mv       = CONFIG_VBCPET_LDO_VO4_MV,
+        .flags.adjustable = true,
+    };
+    esp_err_t err = esp_ldo_acquire_channel(&cfg, &g_ldo_vo4);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "LDO_VO4 (GPIO39~48 IO rail) -> %d mV: OK", CONFIG_VBCPET_LDO_VO4_MV);
+    } else {
+        ESP_LOGE(TAG, "LDO_VO4 acquire @ %d mV failed: %s",
+                 CONFIG_VBCPET_LDO_VO4_MV, esp_err_to_name(err));
+    }
+#else
+    ESP_LOGW(TAG, "LDO_VO4 未配置 (CONFIG_VBCPET_LDO_VO4_MV=0): GPIO39~48 组停在 ~1.2V");
+#endif
+}
+
 void app_main(void)
 {
 #ifdef CONFIG_VBCPET_MINIMAL_USJ
     minimal_usj_test();   /* 不返回: 隔离测试模式 */
 #endif
     ESP_LOGI(TAG, "vbcpet booting on %s (IDF %s)", CONFIG_IDF_TARGET, esp_get_idf_version());
+
+    /* IO 供电轨必须最先配好: 显示(背光 GPIO48)/SD/音频(PA_EN GPIO46)/IMU(INT GPIO47) 全靠它 */
+    ldo_vo4_init();
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase(); nvs_flash_init();

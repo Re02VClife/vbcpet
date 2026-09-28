@@ -16,6 +16,7 @@
 #include "peripherals/wifi_link.h"
 #include "peripherals/c6_flash.h"
 #include "esp_ldo_regulator.h"
+#include "power_rail.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "soc/lp_system_reg.h"
@@ -67,6 +68,10 @@ static void ldo_cmd(int chan, int mv)
                "      ldo <1-4>         查看该通道是否已 acquire\n");
         return;
     }
+    /* 通道 4 已由 app_main 的 ldo_vo4_init() acquire (adjustable 通道不能 acquire 两次),
+     * 这里复用共享 handle 才能改压, 否则 acquire 会失败。 */
+    if (chan == 4 && !s_ldo_chan[4] && g_ldo_vo4) s_ldo_chan[4] = g_ldo_vo4;
+
     if (mv <= 0) {
         printf("LDO_VO%d: %s\n", chan,
                s_ldo_chan[chan] ? "已 acquire (用 ldo <chan> <mv> 改压)" : "未 acquire");

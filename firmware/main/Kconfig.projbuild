@@ -149,6 +149,30 @@ menu "vbcpet C6 烧录通道 (P4 当 C6 的编程器)"
 
 endmenu
 
+menu "vbcpet IO 供电 (LDO_VO4 → GPIO39~48)"
+
+    config VBCPET_LDO_VO4_MV
+        int "LDO_VO4 输出电压 mV (0 = 不配置此轨)"
+        default 3300
+        range 0 3300
+        help
+            模组 pin66 = ESP_LDO_VO4 的输出, 它同时就是 GPIO39~48 这一组 pad 的 IO 供电轨。
+            复位后默认约 1.2V, 若无人配置则一直是 1.2V, 后果是 SD 卡 init failed、
+            PA_EN(GPIO46) 拉不起、MPU_INT(GPIO47) 收不到、BL_PWM(GPIO48) 驱不动 MT3608 EN
+            —— 2026-09-24/25 实测定案。
+
+            500~2700 走片内 LDO 调压档; 3300 是"直通输入轨"(bypass) 档, 也是 SD 卡的
+            标准电平, 故默认 3300。设 0 表示不配置 (开发板 / 无此轨的场合)。
+
+            ⚠️ IDF 约束: adjustable 通道不能被 acquire 两次。本项在 app_main 里统一
+            acquire 一次, 其它地方 (含 SD 驱动的 sd_pwr_ctrl_new_on_chip_ldo) 不要再碰通道 4。
+
+            参考: 模组手册 pin66 "Output power supply (output voltage range 0.5-2.7V or 3.3V,
+                  maximum output current 0.2A)"
+                  IDF components/sdmmc/include/sd_pwr_ctrl_by_on_chip_ldo.h
+
+endmenu
+
 menu "vbcpet Bring-up Debug"
 
     config VBCPET_MINIMAL_USJ
