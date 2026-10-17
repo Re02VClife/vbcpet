@@ -1,5 +1,9 @@
 # vbcpet 工作日志
 
+> 🤖 **AI 阅读纪律（重要）**：本文件 1400+ 行 / 94 KB，**倒序排列（最新在最上面），永远不要整读**。
+> 接手项目请先读根目录 [`AGENTS.md`](AGENTS.md)；这里只读 `offset=1 limit=150`（≈最近 3 天），
+> 查"某个现象以前处理过没有"用 `grep -n "关键词" WORKLOG.md`。
+
 > 📌 **接手 bring-up 请先读 [`hardware/bringup-v1-status.md`](hardware/bringup-v1-status.md)** —— 自包含的现状交接：环境/命令 · 已结案 4 项 · 未结案 6 项 · 摄像头结论 · 已知坑。
 
 ## 2026-09-29 (星期二) — 📡 C6/WiFi 深挖: **旧扫描数据是假象**、C6 查无供电证据、EN 候选脚全部排除

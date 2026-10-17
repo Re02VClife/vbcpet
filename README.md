@@ -1,4 +1,7 @@
-﻿# vbcpet — AI Agent 的 Character Runtime
+# vbcpet — AI Agent 的 Character Runtime
+
+> 🤖 **让 AI 接手本项目**：让它先读 [`AGENTS.md`](AGENTS.md)（一页：当前状态 / 必知坑 / 文档地图 / 省 token 阅读纪律）。
+> **不要让 AI 通读 README + WORKLOG + 各 bring-up 文档** —— 合计 230+ KB，大半是过时的过程记录。
 
 **vbcpet 不只是一个桌宠，而是一套 AI Agent 的「角色运行时（Character Runtime）」。**
 ESP32-P4 是它的第一种身体，Live2D / VRM / PNG 帧序列是它现在的三张脸，未来可扩展到手机、机器人等更多载体。
