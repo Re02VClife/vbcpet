@@ -1,0 +1,32 @@
+# vbcpet WiFi 版 (build_wifi) 的入库默认开关 — 2026-09-29 新增
+#
+# 为什么需要这个文件:
+#   `sdkconfig.wifi` 含明文 SSID/密码, 已 gitignore, 换机器时不会被 clone 下来。
+#   本文件把"WiFi 版构建需要的开关"(不含任何凭据)固化进仓库, 新机器第一次构建时
+#   由 IDF 用它生成 sdkconfig.wifi 的基线, 之后只需在 menuconfig 里填 SSID/密码。
+#
+# 用法 (已在 firmware/_build_wifi.bat 里接好):
+#   idf.py -B build_wifi -D SDKCONFIG=sdkconfig.wifi \
+#          -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.wifi" build
+#   —— SDKCONFIG_DEFAULTS 只在 sdkconfig.wifi 不存在时才起作用; 已存在时不会覆盖。
+#
+# 注意: 环境变量 ESP_IDF_VERSION=5.5 与国内组件镜像仍必须设, 见 _build_wifi.bat。
+
+# 打开模组内 ESP32-C6 + esp-hosted (P4 无原生 WiFi)
+CONFIG_VBCPET_ENABLE_WIFI=y
+
+# 开机不主动探测: 由控制台 `wifi info/scan/conn` 手动触发
+# (vbcpet_main 里 wifi_link_boot() 本来就只打印提示, 这里保持与线上行为一致)
+CONFIG_VBCPET_WIFI_PROBE_ON_BOOT=y
+
+# C6 烧录/诊断通道: 编译进固件(控制台可用 c6flash / c6mon / c6scan),
+# 但**不要**开机自动扫描或自动烧录 —— 那会白等 45s、刷屏, 并长期占用 UART1
+# (正是导致 c6mon 一直报 "UART driver already installed" 的帮凶)
+CONFIG_VBCPET_C6_FLASH=y
+CONFIG_VBCPET_C6_FLASH_ON_BOOT=n
+CONFIG_VBCPET_C6_WAKE_SCAN=n
+
+# P4 ↔ C6 的三根飞线 (V1 实物板当前接法)
+CONFIG_VBCPET_C6_UART_TX_GPIO=30   # P4 GPIO30 → 模组 pin4 (C6_U0RXD)
+CONFIG_VBCPET_C6_UART_RX_GPIO=31   # P4 GPIO31 ← 模组 pin5 (C6_U0TXD)
+CONFIG_VBCPET_C6_BOOT_GPIO=-1      # -1 = pin9 (C6_IO9) 直接接 GND, 固件不驱动

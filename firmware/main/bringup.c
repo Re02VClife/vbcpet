@@ -11,6 +11,7 @@
 #include "peripherals/sd_card.h"
 #include "peripherals/servo.h"
 #include "peripherals/nfc.h"
+#include "peripherals/camera.h"
 #include "peripherals/usb_host.h"
 #include "peripherals/self_test.h"
 #include "peripherals/wifi_link.h"
@@ -116,6 +117,10 @@ int bringup_init(transport_t *transport)
     if (sd_card_init() != 0)            ESP_LOGW(TAG, "SD init failed (卡未插或硬件问题)");
     if (servo_init() != 0)              ESP_LOGW(TAG, "servo init failed");
     touch_init();                       /* 触摸地址待确认, 失败不告警 */
+    /* 摄像头 OV5640: 只做探测 (MCLK 24MHz + RST/PWDN 时序 + SCCB 读 PID)。
+     * ⚠️ CN1.6/CN1.8 无上下拉, 复位后浮空 ⇒ 不主动驱动就永远不会应答 I2C。
+     * 探测失败不告警 (模块没插是正常状态)。CSI/ISP 出图见 docs/wifi-camera-bringup.md C2。 */
+    if (camera_probe() != 0)            ESP_LOGW(TAG, "camera probe failed (OV5640 未应答)");
     if (usb_host_periph_init() != 0)    ESP_LOGW(TAG, "USB host init failed");
 
 #if CONFIG_VBCPET_ENABLE_WIFI
@@ -163,18 +168,20 @@ static void console_task(void *arg)
             printf("命令:\n"
                    "  help                本帮助\n"
                    "  list                列出可用自检\n"
-                   "  test <name>         运行单个自检 (buttons/leds/touch/audio/imu/sd/servo/nfc/usb)\n"
+                   "  test <name>         运行单个自检 (buttons/leds/touch/audio/imu/sd/servo/nfc/cam/usb)\n"
                    "  test all            运行全部自检\n"
                    "  scan                扫描 I2C 总线 (FOUND/NACK/TIMEOUT)\n"
+                   "  cam [addr|pol|raw|mclk]  重跑 OV5640 探测 (默认0x3C; pol=扫极性×地址; raw=不碰引脚只probe; mclk=PCNT实测24MHz)\n"
                    "  led <state>         状态灯: ok绿/warn黄/err红/boot蓝/off  (低亮度)\n"
-                   "  gp <pin>{h|l|r|z}   GPIO 诊断: h驱动高 l驱动低 r读回 z释放 (如 gp 48h)\n"
+                   "  gp <pin>{h|l|r|z}   GPIO 诊断: h驱动高 l驱动低 r读回 z释放 (如 gp 54h; pin<=54)\n"
                    "  ldo <1-4> <mv>      设置内部 LDO 通道电压 (如 ldo 4 3300 = SDMMC IO 拉到 3.3V)\n"
                    "  lcd                 强制点屏: 初始化 DSI/ST7102/背光 + 刷测试图案\n"
                    "  bl <0-100>          背光隔离测试 (不碰 DSI, 只开背光 PWM)\n"
                    "  brightness <0-100>  设置背光亮度\n"
                    "  wifi <sub>          WiFi: scan/info/conn [ssid pass]/status (C6/esp-hosted)\n"
                    "  c6flash [rom|baud]  把 main/c6_merged.bin 烧进模组里的 C6 (P4 当编程器)\n"
-                   "  c6mon [sec]         被动监听 C6 的 UART (看它有没有在跑)\n"
+                   "  c6mon [sec] [baud]  被动监听 C6 的 UART (hex+ASCII, 看它有没有在跑)\n"
+                   "  c6scan              扫候选脚找 C6 的 EN/唤醒脚 (GPIO54/53/52/0/49/50 × 高/低/高阻)\n"
                    "  reboot              软件复位\n"
                    "  dl                  强制进下载模式(免 strap, 下个启动)\n");
         } else if (strcmp(cmd, "list") == 0) {
@@ -222,7 +229,7 @@ static void console_task(void *arg)
                     else mode = 2;   /* 纯数字默认读回 */
                 }
             }
-            if (pin <= 51) {
+            if (pin <= 54) {
                 gpio_config_t cfg = {
                     .pin_bit_mask = (1ULL << pin),
                     .mode = (mode <= 1) ? GPIO_MODE_OUTPUT : ((mode == 2) ? GPIO_MODE_INPUT : GPIO_MODE_DISABLE),
@@ -251,12 +258,31 @@ static void console_task(void *arg)
             ldo_cmd(chan, mv);
         } else if (strcmp(cmd, "scan") == 0) {
             i2c_bus_scan();
+        } else if (strcmp(cmd, "cam") == 0) {
+            /* cam [addr_hex] —— 现场重跑摄像头探测, 不用重启
+             * cam pol        —— 扫 PWDN 两种极性 × 0x3C/3D/3E 三个地址
+             * cam mclk       —— PCNT 实测 GPIO5 上有没有 24MHz */
+            if (strcmp(arg2, "pol") == 0) {
+                camera_cmd(-1);
+            } else if (strcmp(arg2, "raw") == 0) {
+                camera_cmd(-2);
+            } else if (strcmp(arg2, "mclk") == 0) {
+                camera_cmd(-3);
+            } else {
+                unsigned a = 0;
+                if (arg2[0]) sscanf(arg2, "%x", &a);
+                camera_cmd((int)a);
+            }
         } else if (strcmp(cmd, "wifi") == 0) {
             wifi_link_cmd(arg2, rest);
         } else if (strcmp(cmd, "c6flash") == 0) {
             c6_flash_cmd(arg2, rest);
         } else if (strcmp(cmd, "c6mon") == 0) {
-            c6_flash_monitor(*rest ? atoi(rest) : 10);
+            /* 走 c6_flash_cmd 而不是直接 c6_flash_monitor: 这样能带波特率参数
+             * (c6mon 12 460800), 也能复用"先清残留 driver"的兜底 */
+            c6_flash_cmd("mon", rest);
+        } else if (strcmp(cmd, "c6scan") == 0) {
+            c6_flash_cmd("scan", rest);
         } else if (strcmp(cmd, "reboot") == 0) {
             ESP_LOGI(TAG, "software reboot ...");
             vTaskDelay(pdMS_TO_TICKS(100));
@@ -271,9 +297,18 @@ static void console_task(void *arg)
             esp_restart();
         } else if (strcmp(cmd, "rd") == 0) {
             /* 诊断: 真实读一个 I2C 地址的寄存器, 打印 esp_err_t + 读到字节
-             * 用法: rd <addr_hex> <reg_hex>  例: rd 68 75 / rd 50 0 */
+             * 用法: rd <addr_hex> <reg_hex>  例: rd 68 75 / rd 3c 0a
+             * ⚠️ 2026-09-28 修 bug: 原来只 sscanf(arg2) —— 而 arg2 只有第一个 token,
+             *    "rd 3c 0a" 的寄存器号在 rest 里 ⇒ sscanf 永远只得 1 个值, 一律回用法提示。
+             *    改成从 rest 取第二个 token (与 ldo 命令同法)。 */
             unsigned a = 0, rg = 0;
-            if (sscanf(arg2, "%x %x", &a, &rg) == 2 && a > 0) {
+            {
+                const char *p = rest;
+                while (*p && !isspace((unsigned char)*p)) p++;   /* 跳过地址 token */
+                while (*p && isspace((unsigned char)*p)) p++;
+                if (sscanf(arg2, "%x", &a) != 1 || sscanf(p, "%x", &rg) != 1 || a == 0) a = 0;
+            }
+            if (a > 0) {
                 ESP_LOGI(TAG, "rd: read from addr=0x%02X reg=0x%02X ...", a, rg);
                 i2c_master_dev_handle_t dev = NULL;
                 esp_err_t e1 = i2c_master_bus_add_device(i2c_bus_get_handle(),

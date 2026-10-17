@@ -115,7 +115,11 @@ static void backlight_init(void)
         .timer_num       = LEDC_TIMER_0,
         .duty_resolution = LEDC_TIMER_10_BIT,
         .freq_hz         = 1000,
-        .clk_cfg         = LEDC_AUTO_CLK,
+        /* ⚠️ LEDC 时钟源在 P4 上是全局的, 所有 timer 必须同源。这里显式钉 80MHz,
+         * 与 servo.c (50Hz) / peripherals/camera.c (24MHz XVCLK) 保持一致 —— 用 AUTO 会
+         * 随第一个 timer 锁死一个源, 后面要 24MHz 的摄像头就没法用 PLL_F80M 了:
+         *   E ledc: ledc_set_timer_div(693): timer clock conflict, already is 18 but attempt to 9 */
+        .clk_cfg         = LEDC_USE_PLL_DIV_CLK,
     };
     ESP_ERROR_CHECK(ledc_timer_config(&timer));
 

@@ -54,6 +54,8 @@ static void boot_strap(int level)
  */
 static int s_wake_pin = -1, s_wake_level = -1;
 
+static void dump_bytes(const uint8_t *b, int n, int64_t t_ms);
+
 static void pin_drive(int pin, int level)   /* level: 0/1=输出, -1=高阻 */
 {
     if (pin < 0) return;
@@ -67,49 +69,64 @@ static void pin_drive(int pin, int level)   /* level: 0/1=输出, -1=高阻 */
     if (level >= 0) gpio_set_level(pin, level);
 }
 
+static const char *lvl_str(int l) { return l > 0 ? "高" : (l < 0 ? "高阻" : "低"); }
+
+/* ── C6 EN/唤醒脚扫描 (2026-09-30 重写) ────────────────────────────────
+ * 旧版每轮都 esp_loader_init_serial/deinit ⇒ 反复重装 UART driver。而
+ * "GPIO31 刚被 UART 接管"这个瞬态本身就会读出一批垃圾(恒低线上 UART 会
+ * 持续报帧错误、填 0x00) —— 旧扫描里那些"127/128 字节满缓冲"很可能有
+ * 一半是这个假象, 而不是 C6 在说话。
+ *
+ * 新版: UART driver 只装一次; 循环里只切候选脚电平, 每次先 flush 再监听,
+ * 并把内容按 hex+ASCII 打出来。判据因此变干净: 某个脚/电平之后**稳定出现
+ * 可读的 ROM 文本**才说明它真的唤醒了 C6。
+ */
 static void c6_wake_scan(void)
 {
-    static const int pins[] = { 54, 53, 52, 0 };
-    static const int levels[] = { 1, 0, -1 };      /* 先高(直连 EN 高有效/释放), 再低, 再高阻 */
-    esp32_port_t port = {
-        .port.ops = &esp32_uart_ops, .baud_rate = 115200, .uart_port = UART_NUM_1,
-        .uart_rx_pin = (gpio_num_t)C6_RX, .uart_tx_pin = (gpio_num_t)C6_TX,
-        .reset_pin = (gpio_num_t)C6_SPARE_A, .boot_pin = (gpio_num_t)C6_SPARE_B,
-        .rx_buffer_size = 512, .tx_buffer_size = 512,
+    /* 54 = esp_hosted 对 P4+C6 模组的默认 CP 复位脚; 53/52/0 是旧扫描的候选;
+     * 49/50 是 esp_loader 借用的 reset/boot 脚 (已被 c6flash 实测排除, 留作对照) */
+    static const int pins[] = { 54, 53, 52, 0, 49, 50 };
+    static const int levels[] = { 1, 0, -1 };
+    const int n_pins = (int)(sizeof(pins) / sizeof(pins[0]));
+
+    if (uart_driver_delete(C6_UART_NUM) == ESP_OK) ESP_LOGW(TAG, "清掉残留的 UART%d driver", C6_UART_NUM);
+    uart_config_t uc = {
+        .baud_rate = 115200, .data_bits = UART_DATA_8_BITS, .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1, .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
     };
-    for (int i = 0; i < (int)(sizeof(pins) / sizeof(pins[0])); i++) {
+    if (uart_driver_install(C6_UART_NUM, 8192, 0, 0, NULL, 0) != ESP_OK) {
+        ESP_LOGE(TAG, "uart_driver_install 失败, 扫描中止");
+        return;
+    }
+    uart_param_config(C6_UART_NUM, &uc);
+    uart_set_pin(C6_UART_NUM, C6_TX, C6_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
+    ESP_LOGW(TAG, "=== C6 唤醒脚扫描: %d 脚 × {高,低,高阻}, 每态监听 1.5s ===", n_pins);
+    int hits = 0;
+    for (int i = 0; i < n_pins; i++) {
         for (int j = 0; j < 3; j++) {
-            if (pins[i] == 54 && s_wake_pin == 54 && s_wake_level == levels[j]) { /* 已知答案, 跳过 */ }
             pin_drive(pins[i], levels[j]);
-            vTaskDelay(pdMS_TO_TICKS(300));
-
-            esp_loader_t ld;
-            if (esp_loader_init_serial(&ld, &port.port) != ESP_LOADER_SUCCESS) {
-                ESP_LOGW(TAG, "[扫描] init 失败"); return;
-            }
-            /* 先听 600ms: C6 若刚被释放复位, 会在这里吐 ROM 日志 */
-            uint8_t raw[128];
-            int n = uart_read_bytes(UART_NUM_1, raw, sizeof raw, pdMS_TO_TICKS(600));
+            vTaskDelay(pdMS_TO_TICKS(200));          /* 让电平稳定/让 C6 有时间反应 */
+            uart_flush_input(C6_UART_NUM);           /* 只保留这一刻之后的数据 */
+            uint8_t raw[256];
+            int n = uart_read_bytes(C6_UART_NUM, raw, sizeof raw, pdMS_TO_TICKS(1500));
+            ESP_LOGW(TAG, "[扫描] GPIO%d=%s → %d 字节", pins[i], lvl_str(levels[j]), n);
             if (n > 0) {
-                char hex[3 * 64 + 1]; int k = 0;
-                for (int b = 0; b < n && b < 64; b++) k += snprintf(hex + k, 4, "%02x ", raw[b]);
-                ESP_LOGW(TAG, "[扫描] GPIO%d=%d → C6 TX 有 %d 字节: %s", pins[i], levels[j], n, hex);
-            }
-
-            esp_loader_connect_args_t a = ESP_LOADER_CONNECT_DEFAULT();
-            a.sync_timeout = 200; a.trials = 3;
-            esp_loader_error_t e = esp_loader_connect(&ld, &a);
-            ESP_LOGW(TAG, "[扫描] GPIO%d=%d → sync %s (err=%d)", pins[i], levels[j],
-                     e == ESP_LOADER_SUCCESS ? "成功 ✅" : "无响应", (int)e);
-            esp_loader_deinit(&ld);
-            if (e == ESP_LOADER_SUCCESS) {
-                s_wake_pin = pins[i]; s_wake_level = levels[j];
-                ESP_LOGE(TAG, "★ 找到 C6 的 EN/唤醒脚: GPIO%d = %d (自动烧录将用它)", pins[i], levels[j]);
-                return;
+                dump_bytes(raw, n, 0);
+                hits++;
+                if (s_wake_pin < 0) { s_wake_pin = pins[i]; s_wake_level = levels[j]; }
             }
         }
     }
-    ESP_LOGE(TAG, "★ 扫描完毕: 候选脚(GPIO54/53/52/0 × 高/低/高阻)都没能让 C6 应答");
+    uart_driver_delete(C6_UART_NUM);
+    if (hits) {
+        ESP_LOGE(TAG, "★ 扫描结束: %d/%d 组合有字节输出 —— 以后续 hex 里是否出现可读 ROM 文本"
+                      "(\"ESP-ROM:esp32c6\"/\"waiting for download\"/\"invalid header\")为准", hits, n_pins * 3);
+    } else {
+        ESP_LOGE(TAG, "★ 扫描结束: 所有组合都是 0 字节 ⇒ 这 6 个脚都不是 C6 的 EN, "
+                      "或 C6 本身没有在跑 (查 pin9 接地 / C6 供电)");
+    }
 }
 
 int c6_flash_run(bool use_stub, uint32_t baud, int wait_seconds)
@@ -144,19 +161,36 @@ int c6_flash_run(bool use_stub, uint32_t baud, int wait_seconds)
     args.sync_timeout = 200;
     args.trials       = 1;                      /* 我们自己循环重试, 便于打印进度 */
     int64_t t0 = esp_timer_get_time();
+    int rx_total = 0;                           /* C6 在我们等待期间说了多少字节 */
     while (1) {
         err = use_stub ? esp_loader_connect_with_stub(&loader, &args)
                        : esp_loader_connect(&loader, &args);
         if (err == ESP_LOADER_SUCCESS) break;
         int waited = (int)((esp_timer_get_time() - t0) / 1000000);
+
+        /* 趁 sync 的空档偷读 C6 的 TX: 这能一眼区分"完全静默"和"在 boot loop 刷屏"。
+         * 后者说明 C6 根本没进 ROM 下载模式 (IO9 在复位采样时不是 0)。 */
+        uint8_t raw[256];
+        int got = uart_read_bytes(C6_UART_NUM, raw, sizeof raw, pdMS_TO_TICKS(50));
+        if (got > 0) rx_total += got;
+
         if (waited >= wait_seconds) {
-            ESP_LOGE(TAG, "等 %ds 仍没等到 C6 (err=%d) —— 检查: ① pin9 是否接地 ② TX/RX 是否接反 "
-                          "③ 是否真的断电重上电过 ④ 波特率/线序", waited, (int)err);
+            ESP_LOGE(TAG, "等 %ds 仍没等到 C6 (err=%d), 期间从 C6 TX 收到 %d 字节", waited, (int)err, rx_total);
+            if (rx_total > 200) {
+                ESP_LOGE(TAG, "★ C6 一直在说话 ⇒ 它有电、在跑 ROM, 但**没进下载模式** "
+                              "(ROM 进了下载模式会打完 waiting for download 就停下)。"
+                              "首要嫌疑: C6_IO9(模组 pin9) 没有真正接地, 或接触不良 —— "
+                              "断电量 pin9↔GND 是否 ~0Ω, 然后整板断电重上电。");
+            } else if (rx_total == 0) {
+                ESP_LOGE(TAG, "★ C6 一个字都没说 ⇒ 查: pin9 接线 / TX-RX 是否接反 / "
+                              "C6 是否有电(pin9,pin10 上电应 ~3.3V)");
+            }
             esp_loader_deinit(&loader);
             boot_strap(1);
             return -1;
         }
-        if (waited % 5 == 0) ESP_LOGW(TAG, "  等 C6 就绪... %ds (err=%d)", waited, (int)err);
+        if (waited % 5 == 0) ESP_LOGW(TAG, "  等 C6 就绪... %ds (err=%d, C6 已吐 %d 字节)",
+                                      waited, (int)err, rx_total);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
     ESP_LOGI(TAG, "已连上 C6: target=%d", (int)esp_loader_get_target(&loader));
@@ -213,35 +247,71 @@ int c6_flash_run(bool use_stub, uint32_t baud, int wait_seconds)
     return (err == ESP_LOADER_SUCCESS) ? 0 : -1;
 }
 
-void c6_flash_monitor(int seconds)
+/** 把一批原始字节打成 "hex + 可读 ASCII" 两行, 便于肉眼认 C6 的 ROM 日志
+ *  (2026-09-30 加: 之前 printf("%s") 直接吐二进制, 认不出内容) */
+static void dump_bytes(const uint8_t *b, int n, int64_t t_ms)
+{
+    char hex[3 * 32 + 1], asc[33];
+    for (int i = 0; i < n; i += 32) {
+        int m = (n - i) > 32 ? 32 : (n - i);
+        int k = 0;
+        for (int j = 0; j < m; j++) {
+            k += snprintf(hex + k, 4, "%02x ", b[i + j]);
+            asc[j] = (b[i + j] >= 0x20 && b[i + j] < 0x7f) ? (char)b[i + j] : '.';
+        }
+        asc[m] = 0;
+        printf("[C6 %6lldms +%3d] %-*s |%s|\n", (long long)t_ms, i, 3 * 32, hex, asc);
+    }
+    fflush(stdout);
+}
+
+void c6_flash_monitor_baud(int seconds, uint32_t baud)
 {
     if (seconds <= 0) seconds = 10;
-    ESP_LOGI(TAG, "监听 C6 UART (GPIO%d RX) %d 秒 @115200 ...", C6_RX, seconds);
+    if (baud < 9600) baud = 115200;
+    ESP_LOGI(TAG, "监听 C6 UART (GPIO%d RX) %d 秒 @%u ...", C6_RX, seconds, (unsigned)baud);
+
+    /* 兜底: 上一次 c6flash/唤醒扫描若没把 UART driver 释放掉, 这里先删再装。
+     * 2026-09-29 实测: 开机自动 c6flash 之后 c6mon 恒定失败在
+     * "uart: UART driver already installed" —— 于是 c6mon 从来没真正跑起来过。 */
+    if (uart_driver_delete(C6_UART_NUM) == ESP_OK) {
+        ESP_LOGW(TAG, "清掉了残留的 UART%d driver", C6_UART_NUM);
+    }
+
     uart_config_t uc = {
-        .baud_rate = 115200, .data_bits = UART_DATA_8_BITS, .parity = UART_PARITY_DISABLE,
+        .baud_rate = (int)baud, .data_bits = UART_DATA_8_BITS, .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1, .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
     };
-    if (uart_driver_install(C6_UART_NUM, 2048, 0, 0, NULL, 0) != ESP_OK) {
+    /* 大 RX 缓冲: C6 若在 boot loop 会连续刷屏, 512B 的缓冲会被冲爆 -> 丢字节 ->
+     * 收到的日志"缺字"(实测 "Build" 变 "Blid", "header" 变 "heaer") */
+    if (uart_driver_install(C6_UART_NUM, 8192, 0, 0, NULL, 0) != ESP_OK) {
         ESP_LOGE(TAG, "uart_driver_install 失败 (上一次 c6flash 没释放?)");
         return;
     }
     uart_param_config(C6_UART_NUM, &uc);
     uart_set_pin(C6_UART_NUM, C6_TX, C6_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
     int64_t t0 = esp_timer_get_time();
-    uint8_t buf[256];
-    int total = 0;
+    uint8_t buf[1024];
+    int total = 0, bursts = 0;
     while ((esp_timer_get_time() - t0) / 1000000 < seconds) {
         int n = uart_read_bytes(C6_UART_NUM, buf, sizeof buf, pdMS_TO_TICKS(200));
         if (n > 0) {
-            total += n;
-            buf[n < (int)sizeof(buf) ? n : (int)sizeof(buf) - 1] = 0;
-            printf("[C6] %s", (char *)buf);
-            fflush(stdout);
+            total += n; bursts++;
+            dump_bytes(buf, n, (esp_timer_get_time() - t0) / 1000);
         }
     }
+    int secs = (int)((esp_timer_get_time() - t0) / 1000000);
     uart_driver_delete(C6_UART_NUM);
-    ESP_LOGI(TAG, "监听结束, 收到 %d 字节%s", total, total ? "" : " (C6 没说话: 空片/没启动/线反了)");
+    ESP_LOGI(TAG, "监听结束: %d 字节 / %d 批 / %ds (≈%d B/s)%s", total, bursts, secs,
+             secs ? total / secs : 0,
+             total ? "" : " —— C6 完全没说话: 查 pin9 是否接地 / TX-RX 是否接反 / C6 是否上电");
+}
+
+void c6_flash_monitor(int seconds)
+{
+    c6_flash_monitor_baud(seconds, 115200);
 }
 
 static void c6_flash_task(void *arg)
@@ -279,7 +349,19 @@ void c6_flash_boot_hook(void)
 void c6_flash_cmd(const char *sub, const char *rest)
 {
     if (sub && !strcmp(sub, "mon")) {
-        c6_flash_monitor(rest && *rest ? atoi(rest) : 10);
+        int secs = 10;
+        uint32_t baud = 115200;
+        if (rest && *rest) {
+            secs = atoi(rest);
+            const char *sp = strchr(rest, ' ');
+            if (sp) { int v = atoi(sp + 1); if (v >= 9600) baud = (uint32_t)v; }
+        }
+        c6_flash_monitor_baud(secs, baud);
+        return;
+    }
+    if (sub && !strcmp(sub, "scan")) {
+        printf("c6scan: 开始扫候选脚 (GPIO54/53/52/0/49/50 × 高/低/高阻), 约 27s ...\n");
+        c6_wake_scan();
         return;
     }
     if (sub && !strcmp(sub, "rom")) {
@@ -299,6 +381,7 @@ void c6_flash_cmd(const char *sub, const char *rest)
 #else  /* !CONFIG_VBCPET_C6_FLASH */
 int  c6_flash_run(bool use_stub, uint32_t baud, int wait_seconds) { (void)use_stub; (void)baud; (void)wait_seconds; return -1; }
 void c6_flash_monitor(int seconds) { (void)seconds; }
+void c6_flash_monitor_baud(int seconds, uint32_t baud) { (void)seconds; (void)baud; }
 void c6_flash_boot_hook(void) {}
 void c6_flash_cmd(const char *sub, const char *rest)
 {

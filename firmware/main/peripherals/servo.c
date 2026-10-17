@@ -35,7 +35,11 @@ int servo_init(void)
         .timer_num       = LEDC_TIMER_1,
         .duty_resolution = LEDC_TIMER_14_BIT,
         .freq_hz         = SERVO_FREQ_HZ,
-        .clk_cfg         = LEDC_AUTO_CLK,
+        /* ⚠️ 不能用 LEDC_AUTO_CLK: LEDC 时钟源在 P4 上是**全局**的, AUTO 会让驱动替所有 timer
+         * 锁定一个源(实测选了 RC_FAST ~20MHz), 之后摄像头要 24MHz XVCLK 就必须用 PLL_F80M,
+         * 于是被驱动拒绝: "timer clock conflict, already is 18 but attempt to 9"。
+         * 显式钉到 80MHz: 50Hz/14bit 分频 = 80e6/16384/50 ≈ 97.66, 合法且仍在生效范围内。 */
+        .clk_cfg         = LEDC_USE_PLL_DIV_CLK,
     };
     ESP_RETURN_ON_ERROR(ledc_timer_config(&timer), TAG, "timer config fail");
 

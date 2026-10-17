@@ -1,6 +1,248 @@
 # vbcpet 工作日志
 
-> 📌 **接手 bring-up 请先读 [`hardware/bringup-v1-status.md`](hardware/bringup-v1-status.md)** —— 自包含的现状交接：环境/命令 · 已结案 4 项 · 未结案 5 项 · 摄像头验证阶梯 · 8 个已知坑。
+> 📌 **接手 bring-up 请先读 [`hardware/bringup-v1-status.md`](hardware/bringup-v1-status.md)** —— 自包含的现状交接：环境/命令 · 已结案 4 项 · 未结案 6 项 · 摄像头结论 · 已知坑。
+
+## 2026-09-29 (星期二) — 📡 C6/WiFi 深挖: **旧扫描数据是假象**、C6 查无供电证据、EN 候选脚全部排除
+
+### 结论先行
+
+1. **`c6mon` 从写下来那天起就没成功跑过一次** —— `uart: UART driver already installed`。
+   `esp32_port_deinit()` 只在 `_peripheral_needs_deinit` 为真时删 driver，而开机自动 `c6flash`
+   这条路径把它漏了 ⇒ 09-17 之后所有"C6 到底在说什么"的问题，实际上都没有观测手段。
+2. **09-16/09-28/09-29 扫描里那句 `[扫描] GPIO54=1 → C6 TX 有 128 字节` 是假象**，
+   不是 C6 在说话。旧 `c6_wake_scan` 每轮都 `esp_loader_init_serial`/`deinit` ⇒ 反复重装
+   UART driver；而 "GPIO31 刚被 UART 接管" 这个瞬态本身就会读出一批垃圾（RX 恒低时 UART
+   持续报帧错误、填 0x00，正好凑满 127/128 的缓冲）。重写后（driver 只装一次、每态先
+   `uart_flush_input` 再监听 1.5s）**18 个组合全部 0 字节**。
+3. **GPIO54/53/52/0/49/50 × {高,低,高阻} 没有一个是 C6 的 EN/唤醒脚**（`c6scan` 实测）。
+   `esp_hosted` 里 `CONFIG_ESP_HOSTED_HOST_RESET_GPIO=54` 的默认假设在**本模组上不成立**。
+4. **`pin10 (C6_IO8)` 与手册不符**: 上电 0.27V；断电测 `pin10↔GND` / `pin10↔3V3` **都是开路**
+   ⇒ 手册所称"模组内部 10K 上拉"**在实物上不存在** ⇒ 0.27V 只是浮空漏电,
+   **不能当供电判据**（基于它写的"C6 无供电"结论作废）。
+6. ✅ **"C6 不在/没供电"假设已排除（同日实测）**: 模组**型号正确**（ESP32-P4C6-Core）；
+   **拆掉 pin9 地线后悬空读数 = 3.3V** ⇒ C6 的 GPIO9 芯片内部弱上拉在工作 ⇒
+   **C6 芯片在、IO 域有电，且当时处于"正常 SPI 启动"模式**（不是下载模式）。
+   ⇒ C6 大概率一直跑着某个固件（**正常应用不打印 ROM 日志，所以 UART 静默 ≠ 没运行**），
+   只是那固件不是（版本兼容的）esp-hosted slave ⇒ SDIO 从机不响应、卡枚举失败。
+7. 🔴 **真正卡点（一直被忽略）**: **P4 的 `RST1` 只复位 P4, 不复位 C6**。模组没引出 C6 的 EN,
+   而 C6 **只在复位那一刻采样 IO9** ⇒ 只要 C6 一直跑着, `c6flash` 的 sync 就永远没人回应。
+   **进 C6 下载模式的唯一流程 = pin9 接 GND + 整板断电 + 重新上电**（不是按 RST1）。
+8. 🎯 **根因找到: C6 的第二个 strap —— `GPIO8` 没有被驱动为高**。
+   官方 esptool 文档 (ESP32-C6 Boot Mode Selection, 2026-09-29 查证):
+   > *"GPIO8 must also be driven High, in order to enter the serial bootloader reliably.
+   > The strapping combination of GPIO8 = 0 and GPIO9 = 0 is invalid and will trigger
+   > unexpected behavior. In normal boot mode (GPIO9 high), GPIO8 is ignored."*
+   —— 即下载模式要 **`GPIO9=0` 且 `GPIO8=1`**。
+   而实测 **`pin10 (C6_IO8)` 对 GND / 3V3 都是开路** ⇒ 手册所称"模组内部 10K 上拉"
+   **实物不存在** ⇒ GPIO8 既非 1 也没被钉住 ⇒ **`GPIO8=0`+`GPIO9=0` = 无效组合
+   ⇒ "unexpected behavior"** ⇒ C6 不打印、不进下载模式、sync 永远无响应 —— 与全部现象吻合。
+   ⚠️ 09-17 的 `p4c6-manual-crosscheck.md` 记过"厂内已把 GPIO8 钉在 1, 所以只需要管 IO9",
+   **我们据此再没管过 IO8** —— 而那颗上拉实测不在。
+   旁证: `pin9` 悬空 = 3.3V, 正是 C6 **内部 45k 上拉**的表现（同一份文档）⇒ **芯片本身是好的**。
+   **修复**: `pin10 (C6_IO8)` → 3V3（建议串 10k），保持 pin9=GND，**整板断电重上电**，再 `c6flash`。
+5. SDIO 侧同步确认: `wifi info` → `eh_sdio: Reset co-processor using GPIO[54]` →
+   `sdio_card_fn_init failed` 每 240ms 重试（`sdmmc_io_rw_direct returned 0x107`=超时）→
+   5s `bring-up timed out`。C6 作为 SDIO 从机完全不应答。
+
+### 对旧结论的两处修正
+
+| 旧结论 | 修正 |
+|---|---|
+| 09-16「SDIO 卡枚举失败 ⇒ **C6 是空片**（ROM 在跑但没有 slave 固件）」 | 更准确: **C6 根本没在运行**。空片 C6 若真在 ROM 下载模式，UART 会稳定打印 `waiting for download`，而实测 UART 全程 0 字节 |
+| 09-17「pin5 = 0.12V ⇒ C6 没在跑」 | 方向对，但判据弱（TX 脚可被外部漏电影响）。现在有 pin10 的独立证据 + 18 组合无响应 |
+
+### 固件/工具改动
+
+- `firmware/main/peripherals/c6_flash.c`
+  - `c6_flash_monitor_baud()`: 先 `uart_driver_delete` 兜底 → 彻底修掉 "already installed"；
+    RX 缓冲 512→8192（止住"Build"被读成"Blid"的丢字节）；输出改 **hex + ASCII 双栏 + 时间戳 + 批次统计**
+  - `c6_flash_run()`: 等待期间统计"C6 吐了多少字节"，超时日志直接给出判读
+    （>200 字节 ⇒ 它在说话但没进下载模式；0 字节 ⇒ 没电/线断）
+  - `c6_wake_scan()` 重写: UART driver **只装一次**、每态 `uart_flush_input` + 监听 1.5s、
+    候选扩到 54/53/52/0/49/50、打印字节内容
+- `firmware/main/bringup.c`
+  - 新命令 **`c6scan`**（手动触发上面的扫描）；`c6mon [秒] [波特率]` 改走 `c6_flash_cmd`
+    （因此能带波特率、也能吃"清残留 driver"的兜底）
+  - **`gp` 的 pin 上限 `51 → 54`**（原来够不着 GPIO52/53/54，正好是三个候选脚）
+- `firmware/sdkconfig.wifi`: **关掉** `C6_FLASH_ON_BOOT` / `WAKE_SCAN`
+  —— 前者每次开机白等 45s + 长期占用 UART1（正是 c6mon 跑不起来的帮凶），
+  `C6_FLASH` 保留，控制台仍可手敲 `c6flash` / `c6mon` / `c6scan`
+
+### 待办 / 下一步
+
+1. **按正确流程重试烧 C6**（见下），判据: `c6flash` 的 sync 成功 / `c6mon` 出现 ROM 文本
+2. 若仍 sync 失败: 用外部 USB-TTL 直接接 pin4/pin5 看 C6 到底在打印什么
+3. 问鱼鹰: 该模组 C6 出厂预烧的是什么固件？pin10 的"内部 10K 上拉"为什么实测开路？
+
+**正确流程（2026-09-29 更新, 之前每轮都漏了第 2 步）**:
+```
+① pin9 → GND（牢固, 万用表确认 0V）
+② 整板断电（拔电池 + USB）等 5s  →  C6 只有这一刻才采样 IO9
+③ 重新上电 → P4 启动后跑 c6flash（C6 此刻停在 ROM 下载模式等 sync）
+④ 烧完: 拆掉 pin9 的地线 → 再整板断电重上电 → C6 才会跑 slave 固件
+⑤ wifi info 应能读到 CP 信息 → wifi scan / wifi conn → 才能真正传数据
+```
+⚠️ 烧写会覆盖 C6 flash 前 ~1.17MB（bootloader/partition/ota_data/app）—— 若厂内烧过
+WiFi 校准等数据会被覆盖（IDF 通常能用默认值重建）。
+3. 🔴 **写进 V2 必查项**: 「C6 的供电与使能从哪来」**比**"C6 的三根串口线"更靠前 ——
+   如果模组本身不给 C6 供电，V2 上把 UART/OTA 通道画得再全也一样跑不起来
+
+### 教训（与 09-24 的 serial_console 吃首字符同源）
+
+**测量手段本身会伪造证据。** 09-24 是串口工具吃掉首字符（`ldo 4 3300`→`?ldo`），
+这次是 UART driver 反复重装读出的垃圾字节被当成"C6 在说话" —— 两者都让人对着假数据
+推理了好几轮。判据要挑"测量动作不改变被测对象"的那种。
+
+## 2026-09-29 (星期二) — 📷 摄像头复测：**撤回 09-28 结论**、找到复位时序 bug、补上 MCLK 实测
+
+### 结论先行
+
+**09-28 那句"软件侧 100% 清零、判定模块故障"撤回。** 当时漏看了一个真 bug：
+`cam_power_sequence()` 结束时把 `RESTB` 停在**复位断言**（把 Linux 内核
+`gpiod_set_value()` 的**逻辑值**当成**物理电平**抄了；本板 `REST` 低有效
+⇒ 释放复位 = 物理高）。
+⇒ 09-28 的 `test cam` / `cam pol` 两条证据**在当时是无效的** —— 它们测的是一个被
+一直摁在复位里的模块。`cam raw`（手动放开复位）不受这个 bug 影响，它仍然 NACK。
+
+### 这一轮做了什么
+
+1. 用户**重新插拔**排线后复测：`test cam` / `cam raw` / `cam pol` / `scan` 四条结果与
+   09-28 **逐字节相同** ⇒ **接触不良不是原因**。
+2. 用 `gp` 手动走完整时序，扫 **RSTB 极性 × PWDN 极性 4 组合** → **全部 NACK**，
+   且耗时**逐字相同**（141µs / 171µs / 169µs）⇒ 模块对这两个脚毫无反应。
+3. 🐞 **找到并修复位时序 bug**（上面那条）。
+4. 新增 **`cam mclk`**：PCNT 在 GPIO5 上数 1ms 的脉冲反推真实频率。
+   这是整个推理里唯一"驱动说 OK、却从没人看过"的环节 —— 代码里只有
+   `ledc_*_config()` 的返回值，**从没实测过 pad 上是否真有 24MHz**。
+   而 **OV5640 没有 XVCLK 就完全不应答 SCCB**，恰好吻合现象。
+5. 排除 **DVP/MIPI 模块混淆**：`expansion.md:52-53` 记过手上有块 DVP 24pin
+   （与 MIPI 版排线一样、插得进去，但 pinout 完全不同，本来是很强的嫌疑）
+   → 用户确认插的是 08-03 采购的 **MIPI 版**。
+
+### 🔴 MCLK 排查：PCNT 曾误报 0，实测证明 **MCLK 是好的**
+
+`cam mclk`（PCNT 数脉冲）三次都报 **0 个脉冲**，一度以为找到了根因：
+
+```
+cam: MCLK 实测: GPIO5 在 265us 内数到 0 个脉冲 ⇒ ≈0 Hz
+cam: MCLK 实测: GPIO5 在 731us 内数到 0 个脉冲 ⇒ ≈0 Hz
+cam: MCLK 实测: GPIO5 在 735us 内数到 0 个脉冲 ⇒ ≈0 Hz
+```
+
+但用万用表交叉验证后**推翻了它**：
+
+- `gp 5h` 后量 CN1.14 = **3.3V** ⇒ 走线通，且电平域是 3.3V（不是 1.8V）
+- LEDC 运行时量 CN1.14 = **0.75V**（既非 0V 也非 3.3V）⇒ **确实在翻转，LEDC 有输出**
+
+🐞 **误报根因**：`ledc_channel_config()` 把 pad 设成 `GPIO_MODE_OUTPUT` 时会**关掉输入缓冲**
+（`gpio_ll_input_disable`），而 PCNT 走的是 GPIO matrix 的**输入**路径 ⇒ 数到 0。
+**测量方法本身破坏了被测信号。** 修法：PCNT 配好之后补一句
+`gpio_input_enable(PIN_CAM_MCLK)`（只开输入缓冲、不动输出），**待下次烧录验证**。
+
+顺带排除的：
+
+| 嫌疑 | 结果 |
+|---|---|
+| LEDC 绑定丢失 | ❌ 先 `gp 5r` 抢走 pad 再重绑 → 仍 0 |
+| GPIO5 对地短路 | ❌ `gp 5h`→`gp 5r` 读到 **1**，`gp 5l`→`gp 5r` 读到 **0** |
+| 复位时序（09-29 修的那个 bug） | ❌ 修好后 `test cam` 仍 `NOT_FOUND(261)` |
+
+### ✅ 板上到 CN1 的每一条信号链路都验证通过
+
+用"慢速方波 + 万用表看读数是否**跟随跳动**"逐个验证（断路会被上拉钳在 3.3V 不动）：
+
+| 信号 | CN1 脚 | 结果 |
+|---|---|---|
+| CAM_MCLK | 14 | ✅ 3.3V（`gp 5h`）+ 0.75V（LEDC 态）⇒ 通且在翻转 |
+| CAM_RSTB | 6 | ✅ 跟随 0↔3.3V |
+| CAM_PWDN | 8 | ✅ 跟随 0↔3.3V |
+| I2C_SDA | 3 | ✅ 跟随 0↔3.3V |
+| I2C_SCL | 5 | ✅ 跟随 0↔3.3V |
+| +2V8 / +1V5 | 4,11,23 / 10 | ✅ 2.8V / 1.5V |
+
+⇒ **板上全部排除。** 只剩三处：**模块的 24pin 定义与 CN1 网表是否一致**、
+**CN1 座子触点与排线金手指的接触**、**模块本体**。
+详见 `hardware/bringup-v1-camera.md` §3.6.8–3.6.9。
+
+### 两个仍成立的技术坑
+
+- **PCNT glitch filter 会吃掉 24MHz**：默认阈值在 1000ns 量级，而 24MHz 周期只有 41ns
+  ⇒ 必须**不调用** `pcnt_unit_set_glitch_filter()`，否则读回 0 个脉冲、
+  反而"证实"一个不存在的故障。
+- **`cam_mclk_start()` 不能"已启动就早退"**：`gp 5x` 或 PCNT 都可能把 GPIO5 的 pad
+  从 LEDC 手里抢走，早退会让 MCLK 再也回不来。
+
+### 新增/更新
+
+- `firmware/main/peripherals/camera.c`（复位 bug + `cam mclk` + 去掉早退）
+- `firmware/main/bringup.c`（`cam mclk` 分发 + 帮助文本）· `firmware/main/CMakeLists.txt`（`esp_driver_pcnt`）
+- `tools/_cam_rst_pol.py`（RSTB×PWDN 极性扫描）· `tools/_cam_flash_v2.py`（烧录 + 自动跑 `cam mclk`）
+- `hardware/bringup-v1-camera.md` §3.6 · `hardware/bringup-v1-status.md` §4.6
+
+## 2026-09-28 (星期一) — 📷 摄像头 OV5640 bring-up：探测固件就绪（⚠️ 当日结论已于 09-29 撤回）
+
+### 结论先行
+
+> ⚠️ **2026-09-29 撤回**：本节"软件侧 100% 清零"是**错的**。当天漏看了
+> `cam_power_sequence()` 的复位 bug，`test cam` / `cam pol` 两条证据当时无效。
+> 正确状态见上面 09-29 条目。
+
+**软件侧 100% 清零，问题在模块本身。** 固件侧已就绪（探测/自检/诊断命令齐全），
+**换一个 OV5640 24pin 模块后跑 `test cam` 即可**。
+
+### 这一轮做了什么
+
+1. **写了摄像头探测固件**（之前全工程只有 3 行引脚宏）：`peripherals/camera.c`
+   `camera_probe()` = LEDC 出 24MHz MCLK(GPIO5) + PWDN/RSTB 上电时序 +
+   `i2c_master_probe(0x3C)` 判 ACK/NACK + SCCB 读 `0x300A/0x300B`（期望 `0x56/0x40`）。
+   挂进 `bringup_init()`，注册 `test cam`，加 `cam [addr|pol|raw]` 控制台命令。
+2. **修了一个真 bug**：`rd` 命令只 `sscanf(arg2,...)`，而 `arg2` 只有第一个 token，
+   寄存器号在 `rest` 里 ⇒ `rd 3c 0a` **永远**回"用法提示"。改成从 `rest` 取第二个 token。
+3. **推翻了两条旧判据/旧认知**（见下）。
+
+### 关键结论
+
+| 项 | 结论 |
+|---|---|
+| "scan 里没有 0x3C" 能不能当判据 | **不能**。① `CAM_RSTB`(CN1.6)/`CAM_PWDN`(CN1.8) 在板上**无任何上下拉**（网表只有 M1+CN1 两个脚）② GPIO5 复位后不是时钟输出，没 XVCLK ③ SCCB 是 **16 位寄存器地址**，`scan` 的 8 位直读法本来就不是有效事务 |
+| LEDC 时钟源 | **P4 上所有 LEDC timer 必须同源**。背光/舵机原用 `LEDC_AUTO_CLK`（驱动选了 RC_FAST），摄像头要 80MHz 出 24MHz 被拒：`timer clock conflict, already is 18 but attempt to 9` ⇒ 三处全部显式钉 `LEDC_USE_PLL_DIV_CLK` |
+| 共享 I2C | 只 `i2c_bus_init()` 不 `add_device()` ⇒ `s_dev=NULL`，事务秒回 `INVALID_STATE(259)`（几十 µs，真超时是 100ms 级），**看起来像总线故障** |
+| 复位时序 | 第一版写反了（先上电再复位）。按 Linux 内核 `ov5640_reset()` 重写：**RSTB 摁住 → PWDN 掉电 → 上电(复位仍摁住) → 释放 → 循环一次 → 20~25ms 后才谈 SCCB** |
+| `CN1.14/6/8` | 旧文档把 **M1（模组）脚号** 20/27/28 写成了 CN1 脚号；CN1 侧是 **14/6/8** |
+| 根目录那份 OV5640 规格书 | 是 **30pin** 版本（已被 24pin 方案取代），**2026-09-28 删除**；24pin 权威依据 = 网表 CN1 逐脚 |
+
+### 实测结论（决定性）
+
+| 检查 | 结果 |
+|---|---|
+| I2C 总线 | ✅ `0x28`(0xFC) / `0x55` 都正常 |
+| MCLK 24MHz | ✅ LEDC 起振 |
+| RSTB/PWDN | ✅ 实测两脚都按序动 |
+| `+2V8`/`+1V5` | ✅ 2.8V / 1.5V |
+| 座子↔模块通断 | ✅ **24 针全通** |
+| 模块上电 | ✅ 轻微发热 |
+| `cam raw`（复位释放后**等 1s** 再发事务） | ❌ `NOT_FOUND` ⇒ 不是等待不够 |
+| `cam pol`（PWDN 两极性 × 3 地址） | ❌ **6 组合全 NOT_FOUND** ⇒ 不是极性（`PWDNB 极性待确认` 结案） |
+| `scan` | ❌ 只有 `0x28`+`0x55`，摄像头任何地址都不出现 |
+
+⇒ **模块通电、24 针全通、同总线其他器件正常，但模块在 I2C 上完全不响应 ⇒ 判定模块故障。**
+
+### 踩坑（新增工具侧）
+
+- **V1 烧录必须 strap（GPIO35→GND + RST1）**，而 SW5 按钮实测**不能把 GPIO35 拉到地**
+  （`gp 35r` 按住 SW5 仍是 `1`）⇒ 只能用飞线，且飞线接触不稳，多次"进不去下载模式"
+  都是这个原因。**判据**：串口出现 `boot:0x207/0x307 (DOWNLOAD)` 才算成功。
+- ROM 在 `waiting for download` 里**不会一直重复**那句提示，等太久就静默 ⇒
+  监听脚本要先确认芯片在下载模式再烧。
+- `tools/_cam_flash_recover.py` 已封好这个流程（等 ROM 回显 → 烧 → 抓日志 → 自动发 `test cam`）。
+
+### 新增/更新文件
+
+- `firmware/main/peripherals/camera.c` · `camera.h`（新）
+- `firmware/main/bringup.c`（`cam` 命令 + `rd` 修复）· `self_test.c`（`test cam`）· `CMakeLists.txt`
+- `firmware/main/peripherals/servo.c` · `display_pipeline_dsi.c`（LEDC 时钟源显式化）
+- `hardware/bringup-v1-camera.md`（新，自包含）· `hardware/bringup-v1-status.md`（§4.6 新增、脚号订正）
+- `tools/_cam_flash_recover.py` 等 bring-up 辅助脚本
 
 ## 2026-09-25 (星期四) — 📐 手册定性 pin66: 它是 LDO_VO4 的**输出**, 修正 09-24 的「V2 直连 3V3」结论
 

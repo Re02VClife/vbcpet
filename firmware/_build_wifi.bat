@@ -13,6 +13,6 @@ set "IDF_COMPONENT_REGISTRY_URL=https://components.espressif.cn/"
 set "IDF_COMPONENT_STORAGE_URL=https://components-file.espressif.cn/"
 set "ESP_IDF_VERSION=5.5"
 set "PY=D:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe"
-"%PY%" _idf.py -B build_wifi -D SDKCONFIG=sdkconfig.wifi build
+"%PY%" _idf.py -B build_wifi -D SDKCONFIG=sdkconfig.wifi -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.wifi" build
 echo DONE=%ERRORLEVEL%  (产物: build_wifi\vbcpet.bin)
 pause

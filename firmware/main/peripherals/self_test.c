@@ -8,6 +8,7 @@
 #include "sd_card.h"
 #include "servo.h"
 #include "nfc.h"
+#include "camera.h"
 #include "usb_host.h"
 #include "esp_log.h"
 #include <string.h>
@@ -29,6 +30,7 @@ static const self_test_entry_t ENTRIES[] = {
     { "sd",       sd_card_self_test },
     { "servo",    servo_self_test },
     { "nfc",      nfc_self_test },
+    { "cam",      camera_self_test },
     { "usb",      usb_host_periph_self_test },
     { "display",  NULL },   /* display 自检 = 后端初始化本身, 由 main 负责 */
 };

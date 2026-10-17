@@ -77,7 +77,14 @@ firmware_c6/sdkconfig
 firmware_c6/sdkconfig.old
 
 # ── WiFi 探测构建配置: 含明文 SSID/密码, 严禁入库 ──
-# 缺失时 IDF 会自动从 sdkconfig.defaults 重建, 再 menuconfig 填
+# 缺失时 IDF 会自动从 sdkconfig.defaults(+sdkconfig.defaults.wifi) 重建, 再 menuconfig 填
 # "vbcpet WiFi" 菜单里的 SSID/PASSWORD 即可 (见 firmware/_build_wifi.bat)
 firmware/sdkconfig.wifi
 firmware_c6/sdkconfig.wifi
+
+# ── 一次性 bring-up 调试脚本 (带 _ 前缀, 按 2026-09-17 的整理原则不入库) ──
+# 正式工具(tools/serial_console.py / ai_flash.py / gp_sweep.py ...)不受影响
+tools/_*.py
+
+# ── 根目录 bring-up 临时标记文件 (_flash_done.txt 等) ──
+/_*.txt

@@ -27,6 +27,7 @@ elseif(CONFIG_DISPLAY_BACKEND_DSI)
         "peripherals/sd_card.c"
         "peripherals/servo.c"
         "peripherals/nfc.c"
+        "peripherals/camera.c"
         "peripherals/usb_host.c"
         "peripherals/self_test.c"
         "peripherals/wifi_link.c"
@@ -58,6 +59,7 @@ idf_component_register(
         esp_driver_jpeg
         json
         esp_driver_ledc
+        esp_driver_pcnt
         esp_driver_i2c
         esp_driver_i2s
         esp_driver_rmt
