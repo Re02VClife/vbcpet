@@ -78,7 +78,8 @@ ESP32-P4 是它的第一种身体，Live2D / VRM / PNG 帧序列是它现在的�
 - **换皮工具链** — `docs/live2d-comfyui.md` + `docs/live2d-reskin.md`：把 Hiyori 贴图拆成区块 → ComfyUI 逐块生成新形象 → 拼回，`tools/l2d_batch.py`、`tools/live2d_repack.py` 负责批量与打包。
 
 ### 2.2 输出宿主：桌面 + 硬件「双显联动」
-![Uploading image.png…]()
+<img width="725" height="905" alt="image" src="https://github.com/user-attachments/assets/f7f7e8b2-1e3a-4fdd-ad31-f8a2e7f38316" />
+
 
 
 | 宿主 | 实现 | 说明 |
